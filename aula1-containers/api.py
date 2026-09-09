@@ -43,8 +43,7 @@ def sobre():
     """Endpoint obrigatório da Atividade 1: identifica a dupla de alunos."""
     return {
         "integrantes": [
-            "Nome do Aluno 1",
-            "Nome do Aluno 2"
+            "Daniel Amaral Rockenbach",
         ],
         "disciplina": "Infraestrutura Computacional para IA",
         "aula": "Aula 1 - Containers"
