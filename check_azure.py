@@ -113,8 +113,8 @@ def ordenar_tamanhos(tamanhos):
 def main():
     ap = argparse.ArgumentParser(description="Onde a sua assinatura deixa criar AKS e ACI.")
     ap.add_argument("regioes", nargs="*", help="regiões a verificar (padrão: as liberadas pela política)")
-    ap.add_argument("--rapido", action="store_true", help="não consultar cotas de vCPU")
-    ap.add_argument("--todos", action="store_true", help="listar todos os tamanhos, não só os 6 melhores")
+    ap.add_argument("--rapido", action="store_true", help="não consultar cotas de vCPU (lista todos os tamanhos liberados, sem filtrar)")
+    ap.add_argument("--todos", action="store_true", help="listar todos os tamanhos com cota, não só os 6 melhores")
     args = ap.parse_args()
 
     conta = az("account", "show")
@@ -163,30 +163,59 @@ def main():
 
         cota = {} if args.rapido else cotas(regiao)
         usado_total, limite_total = cota.get("cores", (None, None))
+        livres_regiao = None
         if limite_total is not None:
-            print(f"  vCPUs na região: {limite_total - usado_total} livres de {limite_total}")
+            livres_regiao = limite_total - usado_total
+            print(f"  vCPUs na região: {livres_regiao} livres de {limite_total}")
+
+        # Só interessa ao aluno o tamanho que ele consegue criar: com cota livre
+        # na família e no total da região. Os demais ficam de fora da lista.
+        com_cota, sem_cota, sem_info = [], 0, 0
+        for t in tamanhos:
+            if not cota:
+                com_cota.append((t, None))
+                continue
+            usado, limite = cota.get(t["familia"], (None, None))
+            if limite is None:
+                sem_info += 1
+                continue
+            disp = limite - usado
+            if livres_regiao is not None:
+                disp = min(disp, livres_regiao)
+            if disp >= t["vcpus"]:
+                com_cota.append((t, (disp, limite)))
+            else:
+                sem_cota += 1
+
+        melhor = None
+        if not com_cota:
+            print("  Nenhum tamanho de VM com cota de vCPU disponível nesta região.")
+            detalhes = []
+            if sem_cota:
+                detalhes.append(f"{sem_cota} tamanho(s) liberado(s) mas com a cota da família zerada ou esgotada")
+            if sem_info:
+                detalhes.append(f"{sem_info} sem informação de cota")
+            if detalhes:
+                print("  (" + ", ".join(detalhes) + ")")
+            print()
+            continue
 
         print(f"  {'Tamanho':<24}{'vCPU':>5}{'Mem GB':>8}   {'vCPU livres na família' if cota else ''}")
-        mostrados = tamanhos if args.todos else tamanhos[:6]
-        melhor = None
-        for t in mostrados:
-            livres = ""
-            ok = True
-            if cota:
-                usado, limite = cota.get(t["familia"], (None, None))
-                if limite is None:
-                    livres = "cota não informada"
-                else:
-                    disp = limite - usado
-                    livres = f"{disp} de {limite}"
-                    ok = disp >= t["vcpus"]
-                    if not ok:
-                        livres += "  <- sem cota"
+        mostrados = com_cota if args.todos else com_cota[:6]
+        for t, q in mostrados:
+            livres = f"{q[0]} de {q[1]}" if q else ""
             print(f"  {t['nome']:<24}{t['vcpus']:>5}{t['mem']:>8.0f}   {livres}")
-            if melhor is None and ok:
+            if melhor is None:
                 melhor = t
-        if not args.todos and len(tamanhos) > 6:
-            print(f"  ... e mais {len(tamanhos) - 6} tamanhos (use --todos para ver)")
+        if not args.todos and len(com_cota) > 6:
+            print(f"  ... e mais {len(com_cota) - 6} tamanhos com cota (use --todos para ver)")
+        if sem_cota or sem_info:
+            fora = []
+            if sem_cota:
+                fora.append(f"{sem_cota} sem cota")
+            if sem_info:
+                fora.append(f"{sem_info} sem informação de cota")
+            print(f"  Fora da lista: {', '.join(fora)}.")
         print()
         if melhor and tem_aks:
             recomendacoes.append((regiao, melhor["nome"], tem_aci))
