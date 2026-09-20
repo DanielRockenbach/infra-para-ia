@@ -1,0 +1,12 @@
+# Backend gerado pelo workflow, nunca versionado
+backend_ci.tf
+
+# Saída do bootstrap: contém o segredo do service principal
+bootstrap.out
+bootstrap.out.json
+
+# Planos salvos e logs
+tfplan
+plan.txt
+crash.log
+.terraform.tfstate.lock.info
