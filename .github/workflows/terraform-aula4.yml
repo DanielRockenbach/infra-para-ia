@@ -4,13 +4,17 @@
 # o que a mudança faria, sem aplicar nada.
 # Em um push na main (ou seja, depois do merge), roda o job apply.
 #
-# Os dois jobs precisam de duas coisas configuradas pelo aluno no fork,
-# com os valores que o bootstrap.sh imprime:
-#   secret   AZURE_CREDENTIALS         (JSON do service principal)
-#   variable TFSTATE_STORAGE_ACCOUNT   (nome da storage account do estado)
+# Os jobs precisam de quatro variables configuradas pelo aluno no fork,
+# com os valores que o bootstrap.sh imprime (não há secret: o robô se
+# autentica por OIDC, com uma identidade gerenciada do Azure):
+#   TFSTATE_STORAGE_ACCOUNT   nome da storage account do estado
+#   AZURE_CLIENT_ID           client id da identidade gerenciada
+#   AZURE_TENANT_ID           tenant do Azure
+#   AZURE_SUBSCRIPTION_ID     assinatura do Azure
 #
-# Sem a variable, os jobs nem começam: aparecem como skipped na aba Actions.
-# Isso é de propósito, para quem sincroniza o fork antes de configurar.
+# Sem TFSTATE_STORAGE_ACCOUNT, os jobs nem começam: aparecem como skipped
+# na aba Actions. Isso é de propósito, para quem sincroniza o fork antes
+# de configurar.
 
 name: terraform-aula4
 
@@ -31,8 +35,18 @@ concurrency:
   group: terraform-aula4
   cancel-in-progress: false
 
+# id-token: write é o que permite ao job pedir o token OIDC que o Azure aceita.
 permissions:
   contents: read
+  id-token: write
+
+# O provider azurerm e o backend leem estas variáveis e trocam o token do
+# GitHub por um token do Azure. Nenhuma senha em lugar nenhum.
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 defaults:
   run:
@@ -52,23 +66,15 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Credenciais do Azure
-        env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Conferir as variables
         run: |
-          if [ -z "$AZURE_CREDENTIALS" ]; then
-            echo "O secret AZURE_CREDENTIALS não está configurado."
-            echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
-            exit 1
-          fi
-          SEGREDO=$(echo "$AZURE_CREDENTIALS" | jq -r .clientSecret)
-          echo "::add-mask::$SEGREDO"
-          {
-            echo "ARM_CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .clientId)"
-            echo "ARM_CLIENT_SECRET=$SEGREDO"
-            echo "ARM_TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .tenantId)"
-            echo "ARM_SUBSCRIPTION_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .subscriptionId)"
-          } >> "$GITHUB_ENV"
+          for v in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "A variable ${v/ARM_/AZURE_} não está configurada em Settings > Secrets and variables > Actions > Variables."
+              echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+              exit 1
+            fi
+          done
 
       - name: Backend remoto
         run: |
@@ -79,6 +85,7 @@ jobs:
               storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
               container_name       = "tfstate"
               key                  = "aula4.terraform.tfstate"
+              use_oidc             = true
             }
           }
           EOF
@@ -138,23 +145,15 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Credenciais do Azure
-        env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Conferir as variables
         run: |
-          if [ -z "$AZURE_CREDENTIALS" ]; then
-            echo "O secret AZURE_CREDENTIALS não está configurado."
-            echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
-            exit 1
-          fi
-          SEGREDO=$(echo "$AZURE_CREDENTIALS" | jq -r .clientSecret)
-          echo "::add-mask::$SEGREDO"
-          {
-            echo "ARM_CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .clientId)"
-            echo "ARM_CLIENT_SECRET=$SEGREDO"
-            echo "ARM_TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .tenantId)"
-            echo "ARM_SUBSCRIPTION_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .subscriptionId)"
-          } >> "$GITHUB_ENV"
+          for v in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "A variable ${v/ARM_/AZURE_} não está configurada em Settings > Secrets and variables > Actions > Variables."
+              echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+              exit 1
+            fi
+          done
 
       - name: Backend remoto
         run: |
@@ -165,6 +164,7 @@ jobs:
               storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
               container_name       = "tfstate"
               key                  = "aula4.terraform.tfstate"
+              use_oidc             = true
             }
           }
           EOF
