@@ -7,7 +7,7 @@
 dupla = "rodolfo"
 
 # A prática começa em v2 e troca para v3 na etapa 3.
-imagem_tag = "v2"
+imagem_tag = "v3"
 
 # Região do Azure. Use python3 check_azure.py na raiz do repositório para
 # descobrir quais regiões a sua assinatura libera.
