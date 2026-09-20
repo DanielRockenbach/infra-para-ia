@@ -132,6 +132,7 @@ def main():
     else:
         regioes = REGIOES_PADRAO
         origem = "lista padrão do script (a assinatura não tem política de regiões)"
+    regioes = sorted(dict.fromkeys(regioes))
     print(f"Regiões {origem}: {', '.join(regioes)}")
     if politica and args.regioes:
         fora = [r for r in regioes if r not in politica]
