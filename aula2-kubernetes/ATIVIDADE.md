@@ -44,4 +44,4 @@ az group delete --name aula2-rg --yes --no-wait
 - Um Namespace é o objeto mais curto do Kubernetes: `apiVersion: v1`, `kind: Namespace` e um `metadata.name`. Consulte `kubectl explain namespace`.
 - Pod e Service entram no namespace pelo campo `metadata.namespace`. Sem ele, caem no `default` mesmo com o arquivo certo.
 - `kubectl apply -f dupla.yaml` aplica os três objetos de uma vez, na ordem em que aparecem: o Namespace precisa vir primeiro.
-- Se o `curl` não responder, `kubectl get endpoints -n dupla-NOME` diz se o `selector` encontrou o pod.
+- Se o `curl` não responder, `kubectl get endpoints -n dupla-NOME` diz se o `selector` encontrou o pod (o Warning sobre Endpoints deprecado é esperado).

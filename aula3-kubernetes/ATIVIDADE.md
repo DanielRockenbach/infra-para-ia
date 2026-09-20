@@ -43,6 +43,6 @@ az group delete --name aula3-rg --yes --no-wait
 ## Dicas
 
 - Se mudarem o `selector` para incluir `dupla` e `turma`, as mesmas labels precisam estar no `template`, ou o `apply` é recusado.
-- Com 4 réplicas e `maxSurge: 1`, o rolling update chega a 5 pods por instantes. Com requests de 100m cabem no B2s; se aumentarem os requests, confiram `kubectl get pods` por `Pending`.
+- Com 4 réplicas e `maxSurge: 1`, o rolling update chega a 5 pods por instantes. Com requests de 100m cabem no D2as_v7; se aumentarem os requests, confiram `kubectl get pods` por `Pending`.
 - Justificativa de probe é uma frase sobre o comportamento da aplicação, não sobre o número: "o modelo carrega em menos de 2 s, então 3 s de carência bastam" vale; "escolhemos 3" não.
 - A E4 sai de qualquer pod do ReplicaSet novo: `kubectl describe pod $(kubectl get pods -l app=sentiment-api -o jsonpath='{.items[0].metadata.name}') | grep -E "Readiness|Liveness"`.

@@ -4,9 +4,9 @@ Na Aula 2 você colocou um pod no ar e viu que, ao apagá-lo, ninguém o trouxe 
 
 | | |
 |---|---|
-| **Tempo** | 2h em aula, em dupla. As etapas 1 a 4 são as mesmas da Aula 2 e devem sair em 25 minutos; o conteúdo novo começa na Etapa 5. Refazendo em casa: cerca de 50 minutos. |
+| **Tempo** | 2h em aula, em dupla. As etapas 1 a 4 são as mesmas da Aula 2 e o conteúdo novo começa na Etapa 5. Refazendo em casa: cerca de 50 minutos. |
 | **Pré-requisitos** | Conta gratuita do Azure ativa e a prática da Aula 2 feita: o cluster daquela aula foi apagado na faxina, então hoje criamos um novo. |
-| **Custo** | Cerca de US$ 0,25. |
+| **Custo** | Cerca de US$ 0,35. |
 
 **Como ler as etapas:** PORTAL acontece clicando em [portal.azure.com](https://portal.azure.com). TERMINAL acontece no Cloud Shell (Bash), dentro do próprio portal. NAVEGADOR acontece em uma aba nova, no IP público da API.
 
@@ -30,18 +30,18 @@ Assinatura
 ├── Resource group aula3-rg                      ← criado por você
 │   └── Cluster AKS aks-aula3                    control plane no tier Free: sem custo
 └── Resource group MC_aula3-rg_aks-aula3_eastus  ← criado pelo AKS, sozinho
-    ├── VM do nó · Standard_B2s · ~US$ 0,05/h
+    ├── VM do nó · Standard_D2as_v7 · ~US$ 0,10/h
     ├── Load Balancer + IP público
     └── Disco e rede virtual do nó
 ```
 
 ---
 
-## Parte 1 — Preparar o ambiente (~25 min)
+## Parte 1 — Preparar o ambiente
 
 Quatro etapas idênticas às da Aula 2, trocando `aula2` por `aula3` em todos os nomes. Se algo travar aqui, a tabela de [erros comuns](#erros-comuns) cobre os casos conhecidos.
 
-### Etapa 1 — Criar o resource group `aula3-rg` · PORTAL · ~5 min
+### Etapa 1 — Criar o resource group `aula3-rg` · PORTAL
 
 Busque **Resource groups** no topo do portal → **+ Create** → nome `aula3-rg`, região **(US) East US** → **Review + create** → **Create**. O grupo da Aula 2 foi apagado na faxina; este é novo e some do mesmo jeito no fim de hoje.
 
@@ -51,7 +51,7 @@ Pela linha de comando é mais rápido, e é uma pista do que vem na Aula 4:
 az group create --name aula3-rg --location eastus
 ```
 
-### Etapa 2 — Abrir o Cloud Shell · PORTAL + TERMINAL · ~5 min
+### Etapa 2 — Abrir o Cloud Shell · PORTAL + TERMINAL
 
 Ícone **`>_`** na barra do topo → **Bash**. Os providers já foram registrados na Aula 2 e o registro vale para a assinatura inteira, para sempre: hoje basta conferir.
 
@@ -62,7 +62,7 @@ az provider show --namespace Microsoft.ContainerService --query registrationStat
 
 A resposta esperada é `Registered`. Se vier `NotRegistered`, rode `az provider register --namespace Microsoft.ContainerService` e siga adiante enquanto ele processa.
 
-### Etapa 3 — Clonar o repositório · TERMINAL · ~5 min
+### Etapa 3 — Clonar o repositório · TERMINAL
 
 ```bash
 git clone https://github.com/rodolfo-s-antunes/infra-para-ia.git
@@ -80,9 +80,9 @@ Se o Cloud Shell tiver storage, a pasta da Aula 2 ainda está aí: nesse caso o 
 
 ---
 
-## Parte 2 — Criar o cluster (~15 min, com espera produtiva)
+## Parte 2 — Criar o cluster
 
-### Etapa 4 — Criar o cluster AKS · TERMINAL · comando: 2 min, espera: 5 a 10 min
+### Etapa 4 — Criar o cluster AKS · TERMINAL
 
 ```bash
 az aks create \
@@ -90,12 +90,12 @@ az aks create \
   --name aks-aula3 \
   --location eastus \
   --node-count 1 \
-  --node-vm-size Standard_B2s \
+  --node-vm-size Standard_D2as_v7 \
   --tier free \
   --generate-ssh-keys
 ```
 
-As flags são as mesmas da Aula 2: um nó Standard_B2s (2 vCPU, 4 GB) com o control plane no tier Free. Hoje esse único nó vai abrigar três réplicas da API, e é por isso que o manifesto declara `requests` pequenos.
+As flags são as mesmas da Aula 2: um nó Standard_D2as_v7 (2 vCPU, 8 GB) com o control plane no tier Free. Hoje esse único nó vai abrigar três réplicas da API, e é por isso que o manifesto declara `requests` pequenos.
 
 > **Enquanto o cluster sobe.** Não fique olhando o terminal: use os 5 a 10 minutos para ler o manifesto de hoje, que é bem maior que o da aula passada. **Não edite nada agora:** a versão inicial é `v2` de propósito.
 >
@@ -111,9 +111,9 @@ As flags são as mesmas da Aula 2: um nó Standard_B2s (2 vCPU, 4 GB) com o cont
 
 ---
 
-## Parte 3 — Réplicas que se cuidam sozinhas (~40 min)
+## Parte 3 — Réplicas que se cuidam sozinhas
 
-### Etapa 5 — Conectar e aplicar o Deployment · TERMINAL · ~15 min
+### Etapa 5 — Conectar e aplicar o Deployment · TERMINAL
 
 ```bash
 az aks get-credentials --resource-group aula3-rg --name aks-aula3
@@ -151,7 +151,7 @@ estratégia de update              label e este molde"              pod …-tn4r
 
 O loop de reconciliação roda no ReplicaSet: ele conta pods com a label, compara com `replicas: 3` e cria ou apaga a diferença. Para sempre.
 
-### Etapa 6 — Ver a auto-recuperação acontecer · TERMINAL · ~10 min
+### Etapa 6 — Ver a auto-recuperação acontecer · TERMINAL
 
 ```bash
 POD=$(kubectl get pods -l app=sentiment-api -o jsonpath='{.items[0].metadata.name}')
@@ -175,14 +175,14 @@ Em segundos existe um pod novo, com nome novo, no lugar do que você apagou. Com
 
 **Cronometrem:** quantos segundos levou? Esse número é o tempo de recuperação da sua aplicação, e depende do tamanho da imagem.
 
-### Etapa 7 — Service e load balancing · TERMINAL · ~15 min
+### Etapa 7 — Service e load balancing · TERMINAL
 
 ```bash
 kubectl apply -f manifests/service.yaml
 kubectl get svc sentiment-api -w      # até EXTERNAL-IP sair de <pending>
 IP=$(kubectl get svc sentiment-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 for i in $(seq 1 6); do curl -s http://$IP/hostname; echo; done
-kubectl get endpoints sentiment-api
+kubectl get endpoints sentiment-api   # como na Aula 2, ignore o Warning de deprecação do Endpoints
 ```
 
 Saída esperada (resumida):
@@ -207,7 +207,7 @@ porta 80                  port 80 → targetPort 8000         pod …-tn4rp :800
 
 O mesmo `service.yaml` da Aula 2, sem alteração nenhuma: o selector agora casa com três pods em vez de um, e o Service passa a ser um balanceador. A lista de endpoints é viva: pod que morre sai dela, pod que fica pronto entra.
 
-### Etapa 8 — Readiness e escala · TERMINAL · ~10 min
+### Etapa 8 — Readiness e escala · TERMINAL
 
 ```bash
 kubectl describe pod -l app=sentiment-api | grep -E "Readiness|Liveness"
@@ -229,7 +229,7 @@ Liveness:   http-get http://:8000/health delay=15s period=10s #failure=3
 
 > **Por quê.** A coluna READY mostra `0/1` por alguns segundos mesmo com o pod já em `Running`: o container subiu, mas ainda não respondeu 200 em `/health`. Enquanto isso o Service não manda tráfego para ele. É esse detalhe que evita o erro clássico de servir requisições para um modelo que ainda está carregando, e é ele que faz o rolling update da Etapa 9 acontecer sem nenhuma falha. A liveness é outra coisa: se `/health` parar de responder três vezes seguidas, o container é reiniciado, não apenas tirado do tráfego.
 
-**Volte para três réplicas antes de seguir.** Com um nó B2s e requests de 100m de CPU por pod, cinco réplicas cabem, mas o rolling update da próxima etapa precisa de folga para criar um pod extra.
+**Volte para três réplicas antes de seguir.** Com um nó D2as_v7 e requests de 100m de CPU por pod, cinco réplicas cabem, mas o rolling update da próxima etapa precisa de folga para criar um pod extra.
 
 *Experimento opcional:* escale para `--replicas=30`. Alguns pods ficam em `Pending`: o `describe` dirá `Insufficient cpu`. Escalar pods não cria máquina. Volte para 3 depois.
 
@@ -237,9 +237,9 @@ O `scale` é um atalho imperativo: o arquivo continua dizendo 3. Em produção, 
 
 ---
 
-## Parte 4 — Trocar a versão sem parar (~25 min)
+## Parte 4 — Trocar a versão sem parar
 
-### Etapa 9 — Rolling update v2 → v3 · TERMINAL · ~15 min
+### Etapa 9 — Rolling update v2 → v3 · TERMINAL
 
 Esta etapa fica melhor a quatro mãos. Uma pessoa da dupla abre uma **segunda aba do Cloud Shell** e deixa a API sob fogo contínuo:
 
@@ -286,7 +286,7 @@ O rolling update em quatro quadros:
 
 Com `maxSurge: 1` e `maxUnavailable: 0`, nunca há menos de 3 pods prontos. Nenhuma janela de manutenção, nenhuma requisição perdida.
 
-### Etapa 10 — Rollback · TERMINAL · ~10 min
+### Etapa 10 — Rollback · TERMINAL
 
 ```bash
 kubectl rollout undo deployment/sentiment-api
@@ -304,9 +304,9 @@ Pergunta para a dupla: se a v3 nunca ficasse pronta (readiness falhando), o que 
 
 ---
 
-## Parte 5 — Custo e faxina (~10 min)
+## Parte 5 — Custo e faxina
 
-### Etapa 11 — Apagar tudo · TERMINAL + PORTAL · ~5 min
+### Etapa 11 — Apagar tudo · TERMINAL + PORTAL
 
 **Não saia da aula sem fazer esta etapa.** Colete antes as capturas que a [atividade da semana](ATIVIDADE.md) pede: depois do delete não há como recuperar o histórico de rollout nem o IP público.
 
@@ -314,7 +314,7 @@ Pergunta para a dupla: se a v3 nunca ficasse pronta (readiness falhando), o que 
 az group delete --name aula3-rg --yes --no-wait
 ```
 
-Confira depois de alguns minutos que sumiram os dois grupos: `aula3-rg` e o `MC_aula3-rg_aks-aula3_eastus`. Em **Cost Management** → **Cost analysis** o consumo aparece com atraso de algumas horas até um dia; o esperado hoje é algo em torno de US$ 0,25, um pouco mais que a Aula 2, porque o cluster ficou de pé por mais tempo.
+Confira depois de 5 a 15 minutos (o `MC_...` sai primeiro; o `aula3-rg` pode levar mais de 10 minutos) que sumiram os dois grupos: `aula3-rg` e o `MC_aula3-rg_aks-aula3_eastus`. Em **Cost Management** → **Cost analysis** o consumo aparece com atraso de algumas horas até um dia; o esperado hoje é algo em torno de US$ 0,35, um pouco mais que a Aula 2, porque o cluster ficou de pé por mais tempo.
 
 Se você quiser pausar em vez de destruir (para continuar em casa no mesmo dia), `az aks stop -g aula3-rg -n aks-aula3` desliga o nó e para a maior parte do custo, mas o IP público continua reservado.
 
@@ -352,7 +352,7 @@ Ordem de investigação, sempre: `get` para ver o estado, `describe` para ler os
 | O Deployment não cria pod nenhum | `kubectl describe deploy sentiment-api` | `selector` diferente das labels do `template`. O YAML é recusado na hora do `apply`: as duas listas precisam bater. |
 | `/hostname` devolve sempre o mesmo pod | `kubectl get endpoints sentiment-api` | Só um IP na lista: os outros pods não estão prontos (READY 0/1) ou não têm a label do selector. |
 | EXTERNAL-IP `<pending>` por mais de 3 min | `kubectl describe svc sentiment-api` | Cota de IP público ou provisionamento lento. Alternativa: `kubectl port-forward svc/sentiment-api 8080:80`. |
-| `az aks create` falha com `QuotaExceeded` | `az vm list-usage --location eastus -o table` | Cota de vCPU da conta gratuita. Tente `Standard_B2s_v2` ou `Standard_D2s_v3`; se persistir, avise o professor. |
+| `az aks create` falha com `VM size ... is not allowed in your subscription` | leia a lista de tamanhos no próprio erro; `az vm list-usage --location eastus -o table` mostra as cotas | A conta gratuita só libera alguns tamanhos por região. Escolha um `standard_d2..._v7` da lista, por exemplo `Standard_D2as_v7` ou `Standard_D2s_v7`. Se persistir, avise o professor. |
 | A variável `$IP` sumiu | `IP=$(kubectl get svc sentiment-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')` | Cada aba do Cloud Shell tem suas próprias variáveis, e elas se perdem ao reconectar. Redefina na aba nova. |
 
 ---

@@ -8,7 +8,7 @@
 
 ---
 
-## Etapa 1 — Criar o resource group (portal, ~5 min)
+## Etapa 1 — Criar o resource group (portal)
 
 1. Acesse [portal.azure.com](https://portal.azure.com) e faça login.
 2. Na busca do topo, digite **Resource groups** e abra o serviço.
@@ -19,7 +19,7 @@
 
 *Por que East US e não Brazil South? Custo menor e todos os serviços disponíveis. A latência não importa para o laboratório.*
 
-## Etapa 2 — Abrir o Cloud Shell (~5 min)
+## Etapa 2 — Abrir o Cloud Shell
 
 1. Clique no ícone **`>_`** no topo do portal.
 2. Escolha **Bash**.
@@ -36,7 +36,7 @@ az provider register --namespace Microsoft.ContainerInstance
 
 Pode ir para a Etapa 3 sem esperar. Se mais adiante algum comando falhar com `MissingSubscriptionRegistration`, é só aguardar um minuto e repetir o comando que falhou.
 
-## Etapa 3 — Clonar o projeto (~5 min)
+## Etapa 3 — Clonar o projeto
 
 ```bash
 git clone https://github.com/SEU-USUARIO-OU-ORG/infra-para-ia.git
@@ -46,7 +46,7 @@ ls
 
 Você deve ver: `api.py`, `modelo.pkl`, `treinar_modelo.py`, `requirements.txt`, `Dockerfile`, `ROTEIRO.md`.
 
-## Etapa 4 — Entender o que vamos empacotar (~10 min)
+## Etapa 4 — Entender o que vamos empacotar
 
 ```bash
 cat api.py        # a API (FastAPI): recebe uma frase, responde o sentimento
@@ -59,7 +59,7 @@ Perguntas para discutir na dupla:
 2. Por que o `requirements.txt` é copiado ANTES do restante do código?
 3. Qual comando roda quando o container inicia?
 
-## Etapa 5 — Criar o registry (ACR, ~10 min)
+## Etapa 5 — Criar o registry (ACR)
 
 ```bash
 az acr create \
@@ -70,7 +70,7 @@ az acr create \
 
 ⚠️ O nome do ACR é único no mundo e aceita apenas letras minúsculas e números. Se der "name already in use", acrescente números.
 
-## Etapa 6 — Trazer a imagem para o seu registry (~15 min)
+## Etapa 6 — Trazer a imagem para o seu registry
 
 O build desta imagem acontece por **integração contínua**: a cada mudança no repositório, o GitHub Actions executa o Dockerfile e publica a imagem pronta no registry público do GitHub (GHCR). É assim que times profissionais trabalham: ninguém constrói imagem de produção na própria máquina. O professor vai mostrar o log desse build ao vivo (repositório → aba **Actions**): cada `Step` do log corresponde a uma linha do Dockerfile — são as camadas!
 
@@ -93,7 +93,7 @@ az acr repository list --name acrSEUNOME --output table
 
 A partir daqui, a imagem é sua: fica no seu registry, com suas credenciais, como se você mesmo a tivesse construído.
 
-## Etapa 7 — Executar o container (ACI, ~15 min)
+## Etapa 7 — Executar o container (ACI)
 
 Primeiro, habilite e obtenha as credenciais do registry:
 
@@ -125,7 +125,7 @@ az container show \
   --query ipAddress.ip --output tsv
 ```
 
-## Etapa 8 — Testar a API (~15 min)
+## Etapa 8 — Testar a API
 
 **No navegador:** abra `http://SEU-IP:8000/docs` — o FastAPI gera uma página de testes automática. Use o endpoint `POST /prediz`.
 
@@ -146,7 +146,7 @@ Resposta esperada: `{"sentimento": "positivo", "confianca": 0.93...}`
 3. Teste uma frase em inglês. O que acontece e por quê?
 4. Discutam: onde esse modelo simples falha, e o que seria preciso para melhorá-lo?
 
-## Etapa 9 — Faxina final (OBRIGATÓRIA, ~5 min)
+## Etapa 9 — Faxina final (OBRIGATÓRIA)
 
 ```bash
 az group delete --name aula1-rg --yes --no-wait

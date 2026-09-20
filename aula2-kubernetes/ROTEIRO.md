@@ -4,9 +4,9 @@ Da assinatura vazia até a API de sentimento respondendo em um IP público, dent
 
 | | |
 |---|---|
-| **Tempo** | 2h em aula, em dupla. O `az aks create` sozinho leva de 5 a 10 minutos, e a Etapa 5 existe para ocupar essa espera. Em casa, com o caminho conhecido, sai em cerca de 40 minutos. |
+| **Tempo** | 2h em aula, em dupla. A Etapa 5 existe para ocupar a espera do `az aks create`. Em casa, com o caminho conhecido, sai em cerca de 40 minutos. |
 | **Pré-requisitos** | Conta gratuita do Azure ativa (a mesma da Aula 1), navegador e a URL deste repositório. Nada para instalar: tudo roda no Cloud Shell. |
-| **Custo** | Cerca de US$ 0,20. |
+| **Custo** | Cerca de US$ 0,30. |
 
 **Como ler as etapas:** PORTAL acontece clicando em [portal.azure.com](https://portal.azure.com). TERMINAL acontece no Cloud Shell (Bash), dentro do próprio portal. NAVEGADOR acontece em uma aba nova, no IP público da API. Os nomes de menus e botões aparecem em inglês, como no portal, com a tradução entre parênteses na primeira vez.
 
@@ -30,7 +30,7 @@ Assinatura
 ├── Resource group aula2-rg                      ← criado por você
 │   └── Cluster AKS aks-aula2                    control plane no tier Free: sem custo
 └── Resource group MC_aula2-rg_aks-aula2_eastus  ← criado pelo AKS, sozinho
-    ├── VM do nó · Standard_B2s · ~US$ 0,05/h
+    ├── VM do nó · Standard_D2as_v7 · ~US$ 0,10/h
     ├── Load Balancer + IP público
     └── Disco e rede virtual do nó
 ```
@@ -39,20 +39,20 @@ Você cria um resource group; o AKS cria o segundo. Apagar `aula2-rg` no fim rem
 
 ---
 
-## Parte 1 — Preparar o ambiente (~15 min)
+## Parte 1 — Preparar o ambiente
 
 Três etapas curtas que criam a pasta do exercício, abrem o terminal e trazem os arquivos. Idênticas nas duas aulas de Kubernetes.
 
-### Etapa 1 — Criar o resource group `aula2-rg` · PORTAL · ~5 min
+### Etapa 1 — Criar o resource group `aula2-rg` · PORTAL
 
-1. No portal, use a barra de busca do topo: digite **Resource groups** (grupos de recursos) e abra o serviço.
-2. Clique em **+ Create** (criar).
+1. No portal, use a barra de busca do topo: digite **Resource groups** (Grupos de recursos) e abra o serviço.
+2. Clique em **+ Create** (Criar).
 3. Preencha apenas três campos: **Subscription** (assinatura), que já vem selecionada; **Resource group**, com o nome `aula2-rg`; e **Region** (região), com **(US) East US**.
-4. **Review + create** → **Create**. Em poucos segundos ele aparece na lista.
+4. **Review + create** (Revisar e criar) → **Create** (Criar). Em poucos segundos ele aparece na lista.
 
 > **Por quê.** Todo recurso do Azure vive dentro de um resource group. Como tudo o que você criar hoje fica nesta pasta, a limpeza final é um comando só, e o risco de esquecer um recurso ligado consumindo crédito cai para quase zero. A região precisa ser a mesma do cluster: `eastus` é a que tem mais cota disponível em contas gratuitas.
 
-### Etapa 2 — Abrir o Cloud Shell e registrar os providers · PORTAL + TERMINAL · ~5 min
+### Etapa 2 — Abrir o Cloud Shell e registrar os providers · PORTAL + TERMINAL
 
 1. Clique no ícone **`>_`** na barra superior do portal e escolha **Bash** (não PowerShell).
 2. Se ele perguntar sobre armazenamento, escolha **No storage account required** (efêmero) com a sua assinatura; se essa opção não aparecer, aceite o storage padrão.
@@ -75,7 +75,7 @@ az provider show --namespace Microsoft.ContainerService --query registrationStat
 
 O Cloud Shell já vem com `az`, `git` e `kubectl` instalados. Depois de ~20 min de inatividade ele desconecta: basta clicar em **Reconnect**.
 
-### Etapa 3 — Clonar o repositório · TERMINAL · ~5 min
+### Etapa 3 — Clonar o repositório · TERMINAL
 
 ```bash
 git clone https://github.com/rodolfo-s-antunes/infra-para-ia.git
@@ -93,9 +93,9 @@ São os dois manifestos da prática (`pod.yaml` e `service.yaml`) mais um exempl
 
 ---
 
-## Parte 2 — Criar o cluster (~15 min, com espera produtiva)
+## Parte 2 — Criar o cluster
 
-### Etapa 4 — Criar o cluster AKS · TERMINAL · comando: 2 min, espera: 5 a 10 min
+### Etapa 4 — Criar o cluster AKS · TERMINAL
 
 ```bash
 az aks create \
@@ -103,17 +103,19 @@ az aks create \
   --name aks-aula2 \
   --location eastus \
   --node-count 1 \
-  --node-vm-size Standard_B2s \
+  --node-vm-size Standard_D2as_v7 \
   --tier free \
   --generate-ssh-keys
 ```
+
+Se o comando falhar em segundos com `The VM size of ... is not allowed in your subscription`, a sua conta ou região libera outros tamanhos. A mensagem é longa porque lista todos os permitidos. Para ler só os de 2 vCPUs, repita o comando com `2>&1 | grep -o "standard_d2[a-z_0-9]*" | sort -u` no final, escolha um deles e rode de novo com esse valor em `--node-vm-size`.
 
 | Flag | O que ela decide |
 |---|---|
 | `--resource-group aula2-rg` | A pasta da Etapa 1. O cluster nasce dentro dela. |
 | `--name aks-aula2` | Nome do cluster. Só precisa ser único no seu resource group. |
 | `--node-count 1` | Uma máquina de trabalho. Em produção seriam três ou mais, em zonas diferentes. |
-| `--node-vm-size Standard_B2s` | 2 vCPU e 4 GB, ~US$ 0,05 por hora. É o nó que aparece no `kubectl get nodes`. |
+| `--node-vm-size Standard_D2as_v7` | 2 vCPU e 8 GB, ~US$ 0,10 por hora. É o menor tamanho que a conta gratuita permite para o AKS em eastus, e é o nó que aparece no `kubectl get nodes`. |
 | `--tier free` | O control plane sai de graça. Você paga apenas o nó, o disco e o IP público. |
 | `--generate-ssh-keys` | Cria um par de chaves para o nó, se você ainda não tiver. Não usaremos SSH. |
 
@@ -123,7 +125,7 @@ az aks create \
 > az aks show -g aula2-rg -n aks-aula2 --query provisioningState -o tsv
 > ```
 
-### Etapa 5 — Ler e editar o manifesto do Pod · TERMINAL · ~10 min, durante a espera
+### Etapa 5 — Ler e editar o manifesto do Pod · TERMINAL
 
 ```bash
 cat manifests/pod.yaml
@@ -144,7 +146,7 @@ Perguntas para a dupla:
 
 O [Anexo B](#anexo-b--os-manifestos-linha-a-linha) traz este arquivo comentado linha a linha. Indentação em YAML é significativa: use espaços, nunca tabs.
 
-### Etapa 6 — Conectar o kubectl ao cluster · TERMINAL · ~5 min
+### Etapa 6 — Conectar o kubectl ao cluster · TERMINAL
 
 ```bash
 az aks get-credentials --resource-group aula2-rg --name aks-aula2
@@ -156,7 +158,7 @@ Saída esperada (resumida):
 
 ```
 NAME                                STATUS   ROLES   AGE   VERSION
-aks-nodepool1-xxxxxxxx-vmss000000   Ready    agent   3m    v1.3x.x
+aks-nodepool1-xxxxxxxx-vmss000000   Ready    <none>   3m    v1.3x.x
 # kubectl get pods -A: uma dezena de pods em kube-system (coredns, konnectivity,
 # csi-azuredisk, metrics-server...) e nada no namespace default.
 ```
@@ -167,9 +169,9 @@ aks-nodepool1-xxxxxxxx-vmss000000   Ready    agent   3m    v1.3x.x
 
 ---
 
-## Parte 3 — Colocar a API no ar (~45 min)
+## Parte 3 — Colocar a API no ar
 
-### Etapa 7 — Criar o Pod e observar · TERMINAL · ~15 min
+### Etapa 7 — Criar o Pod e observar · TERMINAL
 
 ```bash
 kubectl apply -f manifests/pod.yaml
@@ -191,13 +193,13 @@ Scheduled → Pulling → Pulled → Created → Started
 # exec: {"status":"ok","modelo_carregado":true}
 ```
 
-A sequência que você vai ver no `-w`: `Pending` → `ContainerCreating` → `Running`, com READY indo de `0/1` para `1/1`. O primeiro `Running` costuma levar de 20 a 60 segundos: é o tempo de baixar a imagem no nó.
+A sequência que você vai ver no `-w`: `Pending` → `ContainerCreating` → `Running`, com READY indo de `0/1` para `1/1`. O primeiro `Running` leva de alguns segundos a um minuto: é o tempo de baixar a imagem (140 MB) no nó.
 
 Leia a seção **Events** do `describe` de cima para baixo: ela é o cluster contando o que fez, em ordem. O scheduler escolheu o nó, o kubelet baixou a imagem do GHCR, criou o container e o iniciou. Quando algo der errado nesta prática, é aqui que a explicação vai estar.
 
 **Confira no portal:** abra o cluster → **Kubernetes resources** → **Workloads** → aba **Pods**. O `sentiment-api` aparece lá com o mesmo STATUS que o terminal mostrou. Clicando nele, a aba **YAML** mostra o seu manifesto acrescido de dezenas de campos que o cluster preencheu sozinho.
 
-### Etapa 8 — Expor a API com um Service LoadBalancer · TERMINAL · ~15 min
+### Etapa 8 — Expor a API com um Service LoadBalancer · TERMINAL
 
 ```bash
 cat manifests/service.yaml
@@ -215,7 +217,9 @@ sentiment-api   LoadBalancer   10.0.x.x      20.xx.xxx.xxx   80:3xxxx/TCP
 # endpoints: 10.244.0.x:8000   (o IP do pod da Etapa 7)
 ```
 
-O IP público leva de 1 a 3 minutos para aparecer: nesse tempo o Azure está criando um load balancer de verdade e apontando para o seu nó. **Se o campo ENDPOINTS voltar vazio, o Service não encontrou nenhum pod:** o `selector` dele não bate com as `labels` do pod. Esse é o erro mais comum da aula, e ele não gera mensagem de erro nenhuma.
+O IP público leva de alguns segundos a 3 minutos para aparecer: nesse tempo o Azure está criando um load balancer de verdade e apontando para o seu nó. **Se o campo ENDPOINTS voltar vazio, o Service não encontrou nenhum pod:** o `selector` dele não bate com as `labels` do pod. Esse é o erro mais comum da aula, e ele não gera mensagem de erro nenhuma.
+
+O `kubectl get endpoints` imprime um `Warning` dizendo que o objeto Endpoints está deprecado desde o Kubernetes 1.33. Ignore: a lista continua correta. O substituto moderno é `kubectl get endpointslices -l kubernetes.io/service-name=sentiment-api`, que mostra a mesma informação em outro formato.
 
 O caminho de uma requisição:
 
@@ -229,7 +233,7 @@ porta 80                  port: 80 → targetPort: 8000        app: sentiment-ap
 
 O Service não conhece o pod pelo nome nem pelo IP: ele procura, a cada instante, quem tem a label `app: sentiment-api`. Label igual ao selector, tráfego chega. Diferente, silêncio.
 
-### Etapa 9 — Testar a API · TERMINAL + NAVEGADOR · ~10 min
+### Etapa 9 — Testar a API · TERMINAL + NAVEGADOR
 
 ```bash
 IP=$(kubectl get svc sentiment-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -253,12 +257,12 @@ No navegador, abra `http://SEU-IP/docs` (atenção: `http://`, sem o "s"). A int
 
 Vale gastar dois minutos testando os limites do modelo, como na Aula 1: uma frase negativa, uma frase irônica ("que maravilha, atrasou de novo") e uma em inglês. O `/hostname` hoje responde sempre o mesmo nome, porque existe um pod só. Na Aula 3 ele passa a ser a prova visual do load balancing.
 
-### Etapa 10 — Apagar o pod e ver o que acontece · TERMINAL · ~5 min
+### Etapa 10 — Apagar o pod e ver o que acontece · TERMINAL
 
 ```bash
 kubectl delete pod sentiment-api
 kubectl get pods
-curl http://$IP/versao          # falha, ou fica pendurado
+curl -m 5 http://$IP/versao     # desiste após 5 s: não há mais ninguém atrás do IP
 kubectl get svc sentiment-api   # o Service continua lá, com IP
 kubectl get endpoints sentiment-api   # ... e a lista ficou vazia
 ```
@@ -269,28 +273,28 @@ Discussão na dupla, para guardar até a próxima aula: que objeto deveria ter r
 
 ---
 
-## Parte 4 — Custo e faxina (~10 min)
+## Parte 4 — Custo e faxina
 
-### Etapa 11 — Apagar tudo · TERMINAL + PORTAL · ~5 min
+### Etapa 11 — Apagar tudo · TERMINAL + PORTAL
 
-**Não saia da aula sem fazer esta etapa.** Um cluster esquecido ligado consome cerca de US$ 1,20 por dia do seu crédito, e o IP público continua reservado. Antes de apagar, colete as capturas de tela que a [atividade da semana](ATIVIDADE.md) pede.
+**Não saia da aula sem fazer esta etapa.** Um cluster esquecido ligado consome cerca de US$ 2,50 por dia do seu crédito, e o IP público continua reservado. Antes de apagar, colete as capturas de tela que a [atividade da semana](ATIVIDADE.md) pede.
 
 ```bash
 az group delete --name aula2-rg --yes --no-wait
 ```
 
-Pelo portal o caminho equivalente é **Resource groups** → `aula2-rg` → **Delete resource group**, digitando o nome para confirmar. Depois de alguns minutos, confira na lista que os dois grupos sumiram: o seu `aula2-rg` e o `MC_aula2-rg_aks-aula2_eastus` que o AKS criou. Se você optou pelo Cloud Shell com storage, um grupo pequeno `cloud-shell-storage-…` permanece: custa centavos por mês e pode ficar.
+Pelo portal o caminho equivalente é **Resource groups** (Grupos de recursos) → `aula2-rg` → **Delete resource group** (Excluir grupo de recursos), digitando o nome para confirmar. Depois de 5 a 15 minutos (o `MC_...` sai primeiro; o `aula2-rg` pode levar mais de 10 minutos), confira na lista que os dois grupos sumiram: o seu `aula2-rg` e o `MC_aula2-rg_aks-aula2_eastus` que o AKS criou. Se você optou pelo Cloud Shell com storage, um grupo pequeno `cloud-shell-storage-…` permanece: custa centavos por mês e pode ficar.
 
-Para ver o que a prática custou, busque **Cost Management** → **Cost analysis**. O consumo aparece com atraso de algumas horas até um dia, então volte amanhã: o esperado é algo em torno de US$ 0,20. Recomendado: em **Cost Management** → **Budgets**, crie um alerta de US$ 20 na sua assinatura.
+Para ver o que a prática custou, busque **Cost Management** → **Cost analysis**. O consumo aparece com atraso de algumas horas até um dia, então volte amanhã: o esperado é algo em torno de US$ 0,30. Recomendado: em **Cost Management** → **Budgets**, crie um alerta de US$ 20 na sua assinatura.
 
 Recibo estimado da prática:
 
 | Item | Custo |
 |---|---|
 | Control plane do AKS (tier Free) | US$ 0,00 |
-| 1 nó Standard_B2s · 2h | ~US$ 0,10 |
+| 1 nó Standard_D2as_v7 · 2h | ~US$ 0,20 |
 | Load Balancer e IP público · 2h | ~US$ 0,06 |
-| **Total** | **~US$ 0,20** |
+| **Total** | **~US$ 0,30** |
 
 ### Checklist final da prática
 
@@ -318,7 +322,7 @@ Ordem de investigação, sempre: `get` para ver o estado, `describe` para ler os
 | Sintoma | O que rodar | Causa provável e saída |
 |---|---|---|
 | `MissingSubscriptionRegistration` | `az provider register --namespace <o do erro>` | A Etapa 2 não terminou. Espere 2 minutos até o estado ficar Registered e repita o comando. |
-| `az aks create` falha com `QuotaExceeded` | `az vm list-usage --location eastus -o table` | Cota de vCPU da conta gratuita. Tente `--node-vm-size Standard_B2s_v2` ou `Standard_D2s_v3`; se persistir, avise o professor. |
+| `az aks create` falha com `VM size ... is not allowed in your subscription` | leia a lista de tamanhos no próprio erro; `az vm list-usage --location eastus -o table` mostra as cotas | A conta gratuita só libera alguns tamanhos por região. Escolha um `standard_d2..._v7` da lista, por exemplo `Standard_D2as_v7` ou `Standard_D2s_v7`. Se persistir, avise o professor. |
 | Pod em `ImagePullBackOff` | `kubectl describe pod sentiment-api` | Nome ou tag da imagem digitados errado no YAML. A seção Events mostra a linha exata do erro. |
 | Pod parado em `Pending` | `kubectl get nodes` / `kubectl describe pod sentiment-api` | O nó ainda não está Ready, ou não há recurso livre para agendar o pod. |
 | EXTERNAL-IP `<pending>` por mais de 3 min | `kubectl describe svc sentiment-api` | Cota de IP público esgotada ou provisionamento lento. Alternativa: `kubectl port-forward svc/sentiment-api 8080:80` e testar em `localhost:8080`. |
@@ -354,7 +358,7 @@ Ordem de investigação, sempre: `get` para ver o estado, `describe` para ler os
 | `kubectl describe pod NOME` | Ver tudo sobre o objeto, incluindo a seção Events. |
 | `kubectl logs NOME` / `kubectl logs -f NOME` | A saída do container. Equivale ao `docker logs`. |
 | `kubectl exec -it NOME -- bash` | Um shell dentro do container. Equivale ao `docker exec`. |
-| `kubectl get svc,endpoints` | O Service e a lista de pods que ele encontrou. |
+| `kubectl get svc,endpoints` | O Service e a lista de pods que ele encontrou. O Warning de deprecação do Endpoints pode ser ignorado. |
 | `kubectl get all -n NAMESPACE` | Panorama de um namespace. |
 | `kubectl delete -f ARQUIVO.yaml` | Apagar exatamente o que aquele arquivo criou. |
 | `kubectl explain pod.spec` | A documentação de cada campo, sem sair do terminal. |
@@ -387,7 +391,7 @@ Ordem de investigação, sempre: `get` para ver o estado, `describe` para ler os
 | Termo | Em uma frase |
 |---|---|
 | Cluster | O conjunto de máquinas onde seus containers rodam, mais o cérebro que decide o que roda onde. |
-| Nó (node) | Uma máquina do cluster. Na prática, uma VM Standard_B2s criada pelo AKS. |
+| Nó (node) | Uma máquina do cluster. Na prática, uma VM Standard_D2as_v7 criada pelo AKS. |
 | Control plane | O cérebro: API server, etcd, scheduler e controllers. No AKS, o Azure cuida dele por você. |
 | Manifesto | Um arquivo YAML que descreve o estado desejado. Sempre tem `apiVersion`, `kind`, `metadata` e `spec`. |
 | Pod | A menor unidade que o Kubernetes agenda: um ou mais containers que compartilham rede e armazenamento. É efêmero e não volta sozinho. |

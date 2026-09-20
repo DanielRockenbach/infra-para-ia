@@ -38,7 +38,7 @@ spec:
 
           resources:
             requests:             # o que o scheduler reserva para decidir se o pod cabe no nó
-              cpu: 100m           # um décimo de núcleo: 3 réplicas cabem folgadas no B2s
+              cpu: 100m           # um décimo de núcleo: 3 réplicas cabem folgadas no D2as_v7
               memory: 128Mi
             limits:               # o teto que o container não pode ultrapassar (cgroups)
               cpu: 500m
