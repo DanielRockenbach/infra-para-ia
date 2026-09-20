@@ -114,7 +114,6 @@ def main():
     ap = argparse.ArgumentParser(description="Onde a sua assinatura deixa criar AKS e ACI.")
     ap.add_argument("regioes", nargs="*", help="regiões a verificar (padrão: as liberadas pela política)")
     ap.add_argument("--rapido", action="store_true", help="não consultar cotas de vCPU (lista todos os tamanhos liberados, sem filtrar)")
-    ap.add_argument("--todos", action="store_true", help="listar todos os tamanhos com cota, não só os 6 melhores")
     args = ap.parse_args()
 
     conta = az("account", "show")
@@ -202,14 +201,11 @@ def main():
             continue
 
         print(f"  {'Tamanho':<24}{'vCPU':>5}{'Mem GB':>8}   {'vCPU livres na família' if cota else ''}")
-        mostrados = com_cota if args.todos else com_cota[:6]
-        for t, q in mostrados:
+        for t, q in com_cota:
             livres = f"{q[0]} de {q[1]}" if q else ""
             print(f"  {t['nome']:<24}{t['vcpus']:>5}{t['mem']:>8.0f}   {livres}")
             if melhor is None:
                 melhor = t
-        if not args.todos and len(com_cota) > 6:
-            print(f"  ... e mais {len(com_cota) - 6} tamanhos com cota (use --todos para ver)")
         if sem_cota or sem_info:
             fora = []
             if sem_cota:
