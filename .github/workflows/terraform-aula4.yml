@@ -1,0 +1,200 @@
+# Roda o Terraform da aula 4 a partir do GitHub.
+#
+# Em um pull request que toque aula4-iac/, roda o job plan: ele mostra no log
+# o que a mudança faria, sem aplicar nada.
+# Em um push na main (ou seja, depois do merge), roda o job apply.
+#
+# Os dois jobs precisam de duas coisas configuradas pelo aluno no fork,
+# com os valores que o bootstrap.sh imprime:
+#   secret   AZURE_CREDENTIALS         (JSON do service principal)
+#   variable TFSTATE_STORAGE_ACCOUNT   (nome da storage account do estado)
+#
+# Sem a variable, os jobs nem começam: aparecem como skipped na aba Actions.
+# Isso é de propósito, para quem sincroniza o fork antes de configurar.
+
+name: terraform-aula4
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "aula4-iac/**"
+      - ".github/workflows/terraform-aula4.yml"
+  push:
+    branches: [main]
+    paths:
+      - "aula4-iac/**"
+      - ".github/workflows/terraform-aula4.yml"
+
+# Um de cada vez: além do lock do blob, evita plan e apply simultâneos.
+concurrency:
+  group: terraform-aula4
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: aula4-iac
+
+jobs:
+  plan:
+    name: plan
+    if: github.event_name == 'pull_request' && vars.TFSTATE_STORAGE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Credenciais do Azure
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "$AZURE_CREDENTIALS" ]; then
+            echo "O secret AZURE_CREDENTIALS não está configurado."
+            echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+            exit 1
+          fi
+          SEGREDO=$(echo "$AZURE_CREDENTIALS" | jq -r .clientSecret)
+          echo "::add-mask::$SEGREDO"
+          {
+            echo "ARM_CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .clientId)"
+            echo "ARM_CLIENT_SECRET=$SEGREDO"
+            echo "ARM_TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .tenantId)"
+            echo "ARM_SUBSCRIPTION_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .subscriptionId)"
+          } >> "$GITHUB_ENV"
+
+      - name: Backend remoto
+        run: |
+          cat > backend_ci.tf <<EOF
+          terraform {
+            backend "azurerm" {
+              resource_group_name  = "tfstate-rg"
+              storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+              container_name       = "tfstate"
+              key                  = "aula4.terraform.tfstate"
+            }
+          }
+          EOF
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+
+      - name: Resumo do plano
+        if: always()
+        run: |
+          if [ ! -s plan.txt ]; then
+            {
+              echo "## terraform plan"
+              echo
+              echo "**O plano não chegou a ser gerado. Veja o log do passo terraform plan.**"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          RESUMO=$(grep -E '^(Plan:|No changes\.)' plan.txt | tail -1 || true)
+          if [ -z "$RESUMO" ]; then
+            RESUMO="Plano indisponível, veja o log do passo terraform plan"
+          fi
+          {
+            echo "## terraform plan"
+            echo
+            echo "**${RESUMO}**"
+            echo
+            echo "<details><summary>Saída completa</summary>"
+            echo
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: apply
+    if: github.event_name == 'push' && vars.TFSTATE_STORAGE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Credenciais do Azure
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "$AZURE_CREDENTIALS" ]; then
+            echo "O secret AZURE_CREDENTIALS não está configurado."
+            echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+            exit 1
+          fi
+          SEGREDO=$(echo "$AZURE_CREDENTIALS" | jq -r .clientSecret)
+          echo "::add-mask::$SEGREDO"
+          {
+            echo "ARM_CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .clientId)"
+            echo "ARM_CLIENT_SECRET=$SEGREDO"
+            echo "ARM_TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .tenantId)"
+            echo "ARM_SUBSCRIPTION_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .subscriptionId)"
+          } >> "$GITHUB_ENV"
+
+      - name: Backend remoto
+        run: |
+          cat > backend_ci.tf <<EOF
+          terraform {
+            backend "azurerm" {
+              resource_group_name  = "tfstate-rg"
+              storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+              container_name       = "tfstate"
+              key                  = "aula4.terraform.tfstate"
+            }
+          }
+          EOF
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform plan
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: terraform apply
+        run: terraform apply -input=false -no-color -auto-approve tfplan
+
+      - name: Teste de fumaça e resumo
+        run: |
+          URL=$(terraform output -raw url_api)
+          echo "URL da API: $URL"
+          for i in $(seq 1 24); do
+            if RESP=$(curl -sf "$URL/versao"); then
+              echo "API respondeu: $RESP"
+              {
+                echo "## API no ar"
+                echo
+                echo "- URL: $URL"
+                echo "- /versao: \`$RESP\`"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "tentativa $i: o container ainda está iniciando"
+            sleep 10
+          done
+          echo "A API não respondeu em 4 minutos" >&2
+          exit 1

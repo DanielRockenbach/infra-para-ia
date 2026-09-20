@@ -11,7 +11,7 @@ Todas as práticas rodam no **Microsoft Azure**, usando apenas o navegador (port
 | [`aula1-containers/`](aula1-containers/) | 1 | Containers: build e execução de uma API de IA (ACR + ACI) |
 | [`aula2-kubernetes/`](aula2-kubernetes/) | 2 | Kubernetes I: fundamentos, Pod e Service no AKS |
 | [`aula3-kubernetes/`](aula3-kubernetes/) | 3 | Kubernetes II: réplicas, Deployment, rolling update e rollback |
-| `aula4-iac/` | 4 | Infraestrutura como Código com Terraform *(em breve)* |
+| [`aula4-iac/`](aula4-iac/) | 4 | Infraestrutura como Código: Terraform no Cloud Shell e por pull request |
 | `aula5-storage-streaming/` | 5 | Object storage e streaming: Blob + protocolo Kafka no Event Hubs *(em breve)* |
 
 ## Antes da aula 1
@@ -32,6 +32,8 @@ Todas as imagens são construídas pelo GitHub Actions (pasta [`.github/workflow
 | `ghcr.io/rodolfo-s-antunes/sentiment-api:v1` | 1 | [`aula1-containers/`](aula1-containers/) |
 | `ghcr.io/rodolfo-s-antunes/sentiment-api:v2` | 2 e 3 | [`aula2-kubernetes/api/`](aula2-kubernetes/api/), `VERSAO=v2` |
 | `ghcr.io/rodolfo-s-antunes/sentiment-api:v3` | 3 | [`aula2-kubernetes/api/`](aula2-kubernetes/api/), `VERSAO=v3` |
+
+A aula 4 não constrói imagem nova: o Terraform aponta para as mesmas tags `v2` e `v3` usadas nas aulas 2 e 3.
 
 ## Regra de ouro
 
