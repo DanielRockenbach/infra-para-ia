@@ -6,6 +6,8 @@
 # Depois deste workflow ainda falta a segunda camada da faxina:
 # rodar ./bootstrap-limpeza.sh no Cloud Shell, que apaga a storage
 # account do estado e a identidade do robô.
+#
+# A autenticação é por OIDC, com as mesmas variables do terraform-aula4.yml.
 
 name: terraform-aula4-destroy
 
@@ -20,8 +22,18 @@ concurrency:
   group: terraform-aula4
   cancel-in-progress: false
 
+# id-token: write é o que permite ao job pedir o token OIDC que o Azure aceita.
 permissions:
   contents: read
+  id-token: write
+
+# O provider azurerm e o backend leem estas variáveis e trocam o token do
+# GitHub por um token do Azure. Nenhuma senha em lugar nenhum.
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 defaults:
   run:
@@ -41,22 +53,15 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Credenciais do Azure
-        env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Conferir as variables
         run: |
-          if [ -z "$AZURE_CREDENTIALS" ]; then
-            echo "O secret AZURE_CREDENTIALS não está configurado."
-            exit 1
-          fi
-          SEGREDO=$(echo "$AZURE_CREDENTIALS" | jq -r .clientSecret)
-          echo "::add-mask::$SEGREDO"
-          {
-            echo "ARM_CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .clientId)"
-            echo "ARM_CLIENT_SECRET=$SEGREDO"
-            echo "ARM_TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .tenantId)"
-            echo "ARM_SUBSCRIPTION_ID=$(echo "$AZURE_CREDENTIALS" | jq -r .subscriptionId)"
-          } >> "$GITHUB_ENV"
+          for v in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "A variable ${v/ARM_/AZURE_} não está configurada em Settings > Secrets and variables > Actions > Variables."
+              echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+              exit 1
+            fi
+          done
 
       - name: Backend remoto
         run: |
@@ -67,6 +72,7 @@ jobs:
               storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
               container_name       = "tfstate"
               key                  = "aula4.terraform.tfstate"
+              use_oidc             = true
             }
           }
           EOF
