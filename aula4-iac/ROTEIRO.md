@@ -255,11 +255,13 @@ A URL que aparece na Summary termina em `.brazilsouth.azurecontainer.io:8000`, a
 
 > **Confira no portal.** O `aula4-rg` está de volta, com as mesmas tags, mas desta vez ninguém digitou `apply` em terminal nenhum. Confira também `tfstate-rg` → a storage account → **Containers** → `tfstate`: o arquivo `aula4.terraform.tfstate` está lá, e a aba de versões mostra o histórico das aplicações.
 >
-> Quem preferir o terminal vê a mesma coisa com um comando, trocando `<sa>` pelo nome da storage account que está no `bootstrap.out`:
+> Tanto no portal quanto no terminal o Azure pede uma permissão de **dados** para olhar dentro do container, que é diferente da permissão de **gerenciar** a storage account. Ser dono da assinatura não basta. O caminho curto é mandar o comando usar a chave da conta, trocando `<sa>` pelo nome da storage account que está no `bootstrap.out`:
 >
 > ```bash
-> az storage blob list --account-name <sa> -c tfstate --auth-mode login -o table
+> az storage blob list --account-name <sa> -c tfstate --auth-mode key -o table
 > ```
+>
+> No portal, a mensagem de falta de permissão vem com um botão para trocar de método de autenticação para a chave de acesso, que resolve do mesmo jeito.
 
 ### Etapa 9 — O segundo pull request, v3 · GITHUB
 
