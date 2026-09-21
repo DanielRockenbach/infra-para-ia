@@ -19,6 +19,12 @@ Todas as práticas rodam no **Microsoft Azure**, usando apenas o navegador (port
 1. Crie sua conta gratuita do Azure (siga o tutorial enviado por e-mail). Faça isso **na semana da aula 1** — o crédito de US$ 200 vale por 30 dias.
 2. Consiga fazer login em [portal.azure.com](https://portal.azure.com).
 
+## Descobrir o que a sua assinatura libera
+
+Nem toda assinatura deixa criar recursos em qualquer região, e nem todo tamanho de VM tem cota disponível. O `check_region.sh` na raiz faz uma verificação rápida de região.
+
+O `check_azure.py` é a versão mais completa do `check_region.sh`. Ele descobre quais regiões a sua assinatura libera, se AKS e ACI existem em cada uma e quais tamanhos de VM têm cota de vCPU disponível, e recomenda região e tamanho. Rode `python3 check_azure.py` no Cloud Shell, a partir da raiz do repositório. Para VMs comuns, fora do AKS, use `python3 check_azure.py --noaks`. O script só lê informações, não cria nem apaga nada.
+
 ## O fio condutor do curso
 
 Uma mesma aplicação de IA (uma API de análise de sentimento) atravessa as 5 aulas: nasce em um container, entra em um cluster Kubernetes, ganha réplicas e troca de versão sem queda, vira código com Terraform e, por fim, lê dados do object storage e processa eventos em tempo real com Kafka.

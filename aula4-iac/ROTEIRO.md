@@ -5,7 +5,7 @@ Nas três primeiras aulas você criou infraestrutura clicando no portal e digita
 | | |
 |---|---|
 | **Tempo** | 1h30 em aula, em dupla. A Parte 1 é a base conceitual e sai em cerca de 40 minutos. A Parte 2 é o fluxo de trabalho de verdade. Refazendo em casa: cerca de 1 hora. |
-| **Pré-requisitos** | Conta gratuita do Azure ativa, as práticas das Aulas 1 a 3 feitas, e um fork deste repositório com a aba Actions habilitada, o mesmo fork da atividade da Aula 1. |
+| **Pré-requisitos** | Conta gratuita do Azure ativa, as práticas das Aulas 1 a 3 feitas, e um fork deste repositório com a aba Actions habilitada, o mesmo fork da atividade da Aula 1. O robô do GitHub vai usar uma identidade do Azure sem senha. Você não vai copiar nenhum segredo hoje. |
 | **Custo** | Centavos. Cerca de US$ 0,06. |
 
 **Como ler as etapas:** TERMINAL acontece no Cloud Shell (Bash), dentro do portal. GITHUB acontece no seu fork, em [github.com](https://github.com). NAVEGADOR acontece em uma aba nova, no endereço público da API.
@@ -14,7 +14,7 @@ Nas três primeiras aulas você criou infraestrutura clicando no portal e digita
 
 | # | Etapa | # | Etapa |
 |---|---|---|---|
-| 1 | Preparar e ler o Terraform | 6 | Sincronizar o fork e colar as credenciais |
+| 1 | Preparar e ler o Terraform | 6 | Sincronizar o fork e criar as variables |
 | 2 | `init`, `plan`, `apply` | 7 | O pull request e o plano no log |
 | 3 | Trocar a imagem e ver a recriação | 8 | Merge, apply e a API no ar |
 | 4 | `destroy` | 9 | O segundo pull request, v3 |
@@ -33,7 +33,7 @@ Assinatura
     └── Storage account tfstateXXXXXXXX    guarda o estado · centavos por mês
 ```
 
-A identidade do robô, o service principal, não custa nada. Ela não aparece em resource group nenhum, porque vive no Entra ID, e é por isso que a faxina dela é um passo separado.
+A identidade do robô mora dentro do `tfstate-rg` e não custa nada. Como ela não é criada pelo Terraform, o `destroy` não a remove, e é por isso que a faxina tem duas camadas.
 
 ---
 
@@ -47,11 +47,13 @@ Abra o Cloud Shell (ícone **`>_`** na barra do topo, modo **Bash**) e traga o m
 cd infra-para-ia && git pull && cd aula4-iac
 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 terraform version
-ls
+ls -a
 code terraform.tfvars
 ```
 
 Se a pasta `infra-para-ia` não existir no seu Cloud Shell, use `git clone https://github.com/rodolfo-s-antunes/infra-para-ia.git` e entre nela.
+
+> **Ruído esperado.** O `terraform version` costuma terminar com `Your version of Terraform is out of date!`, e todo `plan` sem `-out` termina com a nota `You didn't use the -out option to save this plan`. Os dois aparecem para todo mundo e não indicam problema nenhum. Ignore.
 
 > **Por que o `export`.** O provider do Azure na linha 4.x não adivinha mais em qual assinatura trabalhar: ele exige a variável de ambiente `ARM_SUBSCRIPTION_ID`. O `export` vale só para a aba atual do Cloud Shell. Se você abrir outra aba ou a sessão cair, repita o comando, senão o `plan` reclama com `subscription_id is a required provider property`.
 
@@ -64,7 +66,7 @@ sed -i 's/dupla = "SUADUPLA"/dupla = "anaejoao"/' terraform.tfvars
 cat terraform.tfvars
 ```
 
-O `ls` mostrou um arquivo a mais que os do repositório: o `.terraform.lock.hcl`. Ele guarda a versão exata do provider e a impressão digital do pacote baixado, e está versionado de propósito. É o que garante que a sua máquina, a do colega e o robô do GitHub usem o mesmo provider, byte a byte. Em Terraform, "funciona na minha máquina" costuma ser um lock file que ninguém comitou.
+O `ls -a` mostra um arquivo que o `ls` sozinho esconde, porque o nome começa com ponto: o `.terraform.lock.hcl`. Ele guarda a versão exata do provider e a impressão digital do pacote baixado, e está versionado de propósito. É o que garante que a sua máquina, a do colega e o robô do GitHub usem o mesmo provider, byte a byte. Em Terraform, "funciona na minha máquina" costuma ser um lock file que ninguém comitou.
 
 Leia o `main.tf` junto com a turma antes de rodar qualquer coisa:
 
@@ -92,10 +94,21 @@ O `apply` mostra o plano de novo e para, esperando você digitar `yes`. **Leia o
 O `plan` termina com:
 
 ```
+Registering resource providers...
 Plan: 3 to add, 0 to change, 0 to destroy.
 ```
 
-e o `apply` com `Apply complete! Resources: 3 added.`, seguido dos três outputs. O `curl` responde `{"versao":"v2"}`. Se ele responder `connection refused`, espere 30 segundos e repita: o `apply` termina quando o Azure aceita o recurso, não quando a API termina de subir.
+Na primeira vez o Terraform registra na sua assinatura os serviços que a aula usa, e isso pode demorar um pouco a mais. Nas vezes seguintes já estão registrados e o plan sai rápido.
+
+O `apply` termina com `Apply complete! Resources: 3 added.`, seguido dos três outputs:
+
+```
+ip_api = "20.206.xxx.xxx"
+resource_group = "aula4-rg"
+url_api = "http://sentiment-anaejoao-p7u0.brazilsouth.azurecontainer.io:8000"
+```
+
+O `curl` responde `{"versao":"v2"}`. Se ele responder `connection refused`, espere 30 segundos e repita: o `apply` termina quando o Azure aceita o recurso, não quando a API termina de subir.
 
 O `terraform state list` devolve três linhas:
 
@@ -138,7 +151,15 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 
 `forces replacement` quer dizer que a imagem de um container group não pode ser trocada no lugar: para mudar, o Azure exige apagar e criar de novo. O `~` sozinho, que você vai ver na seção "para ir além", seria uma alteração sem recriação.
 
-Depois do `apply`, o `curl` responde `{"versao":"v3"}`. Compare os dois outputs: o **IP mudou** e a **URL não**, porque o rótulo DNS continua o mesmo e o sufixo aleatório continua guardado no estado. Só por isso o `curl` da linha seguinte funciona sem você precisar copiar nada.
+Depois do `apply`, o `curl` responde `{"versao":"v3"}`. Se ele não responder de primeira, espere uns trinta segundos e repita, porque o container novo ainda está baixando a imagem.
+
+```
+ip_api = "20.206.yyy.yyy"
+resource_group = "aula4-rg"
+url_api = "http://sentiment-anaejoao-p7u0.brazilsouth.azurecontainer.io:8000"
+```
+
+Compare os dois outputs: o **IP mudou** e a **URL não**, porque o rótulo DNS continua o mesmo e o sufixo aleatório continua guardado no estado. Só por isso o `curl` da linha seguinte funciona sem você precisar copiar nada.
 
 Compare com a Aula 3: lá o rolling update trocou a imagem sem derrubar a API, porque o Kubernetes subia o pod novo antes de tirar o velho. Aqui há cerca de um minuto fora do ar. A diferença não é o Terraform, é o recurso: uma Container Instance é uma coisa só, e não um conjunto de réplicas.
 
@@ -162,57 +183,53 @@ Da Etapa 5 em diante nada mais roda na sua mão. Quem aplica é o GitHub Actions
 ### Etapa 5 — `bootstrap` · TERMINAL
 
 ```bash
-./bootstrap.sh
+./bootstrap.sh SEU-USUARIO-DO-GITHUB
 ```
 
-O script leva cerca de um minuto e imprime no fim um bloco para você copiar. **Não feche essa aba.**
+O argumento é o usuário dono do fork, o que aparece em `github.com/SEU-USUARIO/infra-para-ia`. O script precisa dele para dizer ao Azure em qual repositório confiar. Ao terminar, ele imprime um bloco para você copiar. **Não feche essa aba.**
 
-O que ele fez, nas três partes que ele mesmo anuncia:
+O que ele fez, nas quatro partes que ele mesmo anuncia:
 
 1. Um resource group `tfstate-rg` e dentro dele uma storage account com um container de blobs chamado `tfstate`. É aí que o estado vai morar, em vez de ficar em um arquivo na sua pasta. Ele liga o versionamento do blob, que guarda o histórico do estado sem custo relevante.
-2. Um service principal com papel **Contributor** na assinatura inteira. Service principal é uma conta de robô: tem identidade e senha, mas não tem pessoa atrás. É ela que o GitHub Actions usa para criar recursos no seu lugar.
-3. O arquivo `bootstrap.out.json`, que contém a senha desse robô.
+2. Uma **identidade gerenciada** chamada `gh-infra-para-ia`, com papel **Contributor** na assinatura. Identidade gerenciada é uma identidade que pertence a um recurso do Azure, não a uma pessoa, e que **não tem senha**. É ela que o GitHub Actions usa para criar recursos no seu lugar.
+3. Duas **credenciais federadas** nessa identidade, uma para a branch `main` e outra para pull requests. Credencial federada é a regra que diz ao Azure em quem confiar: o GitHub emite um token assinado a cada execução, dizendo de qual repositório e de qual branch ele veio, e o Azure aceita esse token no lugar de uma senha. Só o seu repositório serve.
+4. O arquivo `bootstrap.out`, com os quatro valores que você vai copiar para o GitHub.
 
 > **Contributor na assinatura inteira é generoso demais para produção.** Em um ambiente real o robô receberia o papel só no resource group em que ele trabalha, e o resource group seria criado antes, por outra pessoa. Aqui ele precisa poder criar o próprio `aula4-rg`, e a assinatura é de vocês e vai ser esvaziada no fim da aula, então o escopo largo é aceitável. Esse ajuste de escopo é o que RBAC significa na prática.
 
-Guarde a diferença entre as duas coisas que o script pede para você colar no GitHub:
+> **Não existe segredo.** Os quatro valores que o script imprime são identificadores, não senhas: o nome de uma storage account, o id da identidade, o id do tenant e o id da assinatura. Nenhum deles dá acesso a nada sozinho, porque o acesso depende do token que só o GitHub consegue emitir para o seu repositório. É por isso que os quatro vão para **variables**, e não para secrets. Para rever depois: `cat bootstrap.out`.
 
-| | Secret | Variable |
-|---|---|---|
-| Vale para | `AZURE_CREDENTIALS` | `TFSTATE_STORAGE_ACCOUNT` |
-| O GitHub mostra depois de salvo? | Não, nunca mais | Sim |
-| Aparece no log? | Mascarado como `***` | Em texto puro |
-| Por quê | É a senha do robô | É só o nome de uma storage account |
+### Etapa 6 — Sincronizar o fork e criar as variables · GITHUB
 
-O `bootstrap.out.json` tem a senha do robô. Ele não vai para o repositório (o `.gitignore` da pasta cuida disso), não vai para o chat da dupla e não entra em captura de tela. Para rever depois: `cat bootstrap.out.json`.
-
-### Etapa 6 — Sincronizar o fork e colar as credenciais · GITHUB
-
-**A ordem importa.** Primeiro traga o material da aula 4 para o seu fork, depois configure as credenciais.
+**A ordem importa.** Primeiro traga o material da aula 4 para o seu fork, depois crie as variables.
 
 1. Abra o seu fork, o mesmo da atividade da Aula 1, em `github.com/SEU-USUARIO/infra-para-ia`.
 2. Clique em **Sync fork** e em **Update branch**. Agora a pasta `aula4-iac/` e os dois workflows novos existem no seu fork.
-3. Vá em **Settings** → **Secrets and variables** → **Actions**.
-4. Na aba **Secrets**, **New repository secret**: nome `AZURE_CREDENTIALS`, valor o bloco JSON inteiro que o bootstrap imprimiu, da primeira `{` até a última `}`.
-5. Na aba **Variables**, **New repository variable**: nome `TFSTATE_STORAGE_ACCOUNT`, valor o nome da storage account que o bootstrap imprimiu.
+3. Vá em **Settings** → **Secrets and variables** → **Actions**, aba **Variables**.
+4. Clique em **New repository variable** quatro vezes, uma para cada linha que o bootstrap imprimiu: `TFSTATE_STORAGE_ACCOUNT`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_SUBSCRIPTION_ID`. Copie nome e valor exatamente como estão.
 
-Espere cerca de um minuto antes de disparar o primeiro workflow, para a permissão do service principal terminar de propagar no Azure.
+Dê um intervalo entre o fim do bootstrap e o primeiro workflow, para a permissão do robô terminar de propagar no Azure.
 
-> **Se você sincronizar o fork antes de configurar as credenciais**, os jobs aparecem na aba Actions como **skipped**, em cinza. Isso é de propósito: os dois jobs só começam quando a variable `TFSTATE_STORAGE_ACCOUNT` existe. Um job cinza aqui não é erro, é o workflow evitando falhar por um motivo que você ainda não tinha como resolver.
+> **Por que variables e não secrets.** Secret é para o que precisa ficar escondido, e aqui nada precisa. O GitHub mascara um secret no log como `***` e nunca mais mostra o valor, o que atrapalha na hora de conferir se você colou certo. Como nenhum dos quatro valores é uma senha, eles ficam em variables, visíveis, e o log fica legível.
+
+> **O aviso do GitHub sobre forks.** Na tela de variables o GitHub avisa que elas *are not passed to workflows triggered by a pull request from a fork*. Isso não afeta você: o pull request da dupla nasce dentro do próprio fork, de uma branch para a `main` do fork, e não contra o repositório do professor. Pull request dentro do mesmo repositório recebe as variables normalmente.
+
+> **Se você sincronizar o fork antes de criar as variables**, os jobs aparecem na aba Actions como **skipped**, em cinza. Isso é de propósito: os dois jobs só começam quando a variable `TFSTATE_STORAGE_ACCOUNT` existe. Um job cinza aqui não é erro, é o workflow evitando falhar por um motivo que você ainda não tinha como resolver.
 
 ### Etapa 7 — O pull request e o plano no log · GITHUB
 
 Agora a mudança de infraestrutura vira uma proposta revisável, em vez de um comando digitado por alguém.
 
-1. No seu fork, abra `aula4-iac/terraform.tfvars`.
-2. Clique no ícone de lápis, **Edit this file**.
-3. Troque `SUADUPLA` pelo apelido da dupla, o mesmo da Parte 1. **Mude só o que está entre aspas.**
-4. Clique em **Commit changes...**.
-5. Marque **Create a new branch for this commit and start a pull request** e dê à branch o nome `dupla-<apelido>`.
-6. **Propose changes**.
-7. **Create pull request**.
+1. Na aba **Code** do fork, clique na pasta `aula4-iac` e depois no arquivo `terraform.tfvars`.
+2. No canto superior direito do conteúdo do arquivo há um ícone de lápis, **Edit this file**. Clique nele. O arquivo abre em um editor.
+3. Na linha `dupla = "SUADUPLA"`, troque `SUADUPLA` pelo apelido da dupla, o mesmo da Parte 1, mantendo as aspas e os espaços em volta do `=`.
+4. Botão verde **Commit changes...** no alto à direita. Abre uma janela.
+5. Na janela, marque **Create a new branch for this commit and start a pull request**. O GitHub sugere um nome de branch terminado em `patch-1`: troque por `dupla-<apelido>`. A mensagem de commit pode ficar a sugerida.
+6. **Propose changes**. Na tela seguinte, confira que o campo **base repository** aponta para o **seu fork**, e não para `rodolfo-s-antunes/infra-para-ia`. Se apontar para o repositório do professor, troque no menu. Depois **Create pull request**.
 
-> **Confira o repositório base antes de criar.** Na tela do pull request, à esquerda do título, o GitHub mostra algo como `base repository: rodolfo-s-antunes/infra-para-ia ← head repository: SEU-USUARIO/infra-para-ia`. O padrão do GitHub é propor a mudança para o repositório original, e não é isso que você quer: o repositório do professor não tem as suas credenciais, e o job vai aparecer como skipped. Clique em **base repository** e escolha **SEU-USUARIO/infra-para-ia**. As duas pontas do pull request têm que ser o seu fork.
+> **Por que o repositório base importa.** O padrão do GitHub é propor a mudança para o repositório original, e não é isso que você quer: o repositório do professor não tem as suas variables, e o job vai aparecer como skipped. As duas pontas do pull request têm que ser o seu fork.
+
+> **Avisos amarelos no alto do run** falando de Node.js ou de `ubuntu-latest` são do próprio GitHub, sobre a plataforma que roda o job, e não têm relação com o Terraform nem com a sua infraestrutura.
 
 Alguns segundos depois, o quadro de checks aparece no fim do pull request. Há dois caminhos para ler o plano, e vale conhecer os dois:
 
@@ -235,13 +252,23 @@ O merge foi o `yes` que você digitou na Etapa 2. A diferença é que desta vez 
 
 Quando o job terminar em verde, abra a aba **Summary** do run. Ela traz a URL da API e a resposta de `/versao`. Copie a URL, cole no navegador acrescentando `/docs` no fim, e teste o `POST /prediz` pela interface do FastAPI, como na Aula 1.
 
+A URL que aparece na Summary termina em `.brazilsouth.azurecontainer.io:8000`, a mesma região da Parte 1.
+
 > **Confira no portal.** O `aula4-rg` está de volta, com as mesmas tags, mas desta vez ninguém digitou `apply` em terminal nenhum. Confira também `tfstate-rg` → a storage account → **Containers** → `tfstate`: o arquivo `aula4.terraform.tfstate` está lá, e a aba de versões mostra o histórico das aplicações.
+>
+> Quem preferir o terminal vê a mesma coisa com um comando, trocando `<sa>` pelo nome da storage account que está no `bootstrap.out`:
+>
+> ```bash
+> az storage blob list --account-name <sa> -c tfstate --auth-mode login -o table
+> ```
 
 ### Etapa 9 — O segundo pull request, v3 · GITHUB
 
 Se o tempo apertar, esta etapa fica para casa.
 
 Repita a Etapa 7 mudando agora só `imagem_tag`, de `v2` para `v3`, em uma branch chamada `v3-<apelido>`. O plano do pull request traz o `-/+` e o `forces replacement` da Etapa 3, e é aí que está a graça: o revisor vê que a mudança vai recriar o recurso **antes** de aprovar. Foi exatamente essa informação que faltou em todo incidente de produção que começou com alguém mudando um atributo aparentemente inofensivo.
+
+Ao editar o arquivo, o Copilot pode sugerir sozinho uma mensagem de commit como `Update imagem_tag from v2 to v3`. Pode aceitar, está correta.
 
 Depois do merge, o job `apply` recria o container e o teste de fumaça devolve `{"versao":"v3"}` na aba Summary.
 
@@ -261,7 +288,7 @@ Actions → terraform-aula4-destroy → Run workflow → confirmacao: destruir �
 
 O campo de confirmação existe para que um clique distraído não derrube nada: qualquer palavra diferente de `destruir` e o job nem começa.
 
-A segunda camada apaga o que o Terraform não criou, e essa é sua:
+A segunda camada apaga o que o Terraform não criou, e essa é sua. O script apaga o `tfstate-rg` inteiro, que leva junto a storage account e a identidade do robô, e também remove a permissão que a identidade tinha na assinatura:
 
 ```bash
 ./bootstrap-limpeza.sh
@@ -270,7 +297,7 @@ az group list -o table
 
 O script avisa se o `aula4-rg` ainda existir, sinal de que você pulou a primeira camada. No fim, a lista de resource groups não tem nem `aula4-rg` nem `tfstate-rg`. Se você optou pelo Cloud Shell com storage, o grupo `cloud-shell-storage-...` continua e pode ficar, como nas aulas anteriores.
 
-Falta um passo manual, que nenhum script pode fazer por você: apague o secret `AZURE_CREDENTIALS` em **Settings** → **Secrets and variables** → **Actions** do seu fork. O robô que ele identificava não existe mais, e um segredo órfão é um segredo que ninguém vai lembrar de revogar.
+As quatro variables do fork podem ficar ou ser apagadas, como vocês preferirem. Não há segredo nelas, e a identidade que o `AZURE_CLIENT_ID` aponta já não existe, então nenhuma delas dá acesso a coisa nenhuma.
 
 ### Checklist final da prática
 
@@ -282,12 +309,12 @@ Falta um passo manual, que nenhum script pode fazer por você: apague o secret `
 - [ ] `plan` repetido mostrando `No changes`
 - [ ] Troca para `v3` com `forces replacement` no plano, e IP novo com a mesma URL
 - [ ] `destroy` local concluído e `aula4-rg` fora da lista
-- [ ] `bootstrap.sh` rodado e a saída copiada para o GitHub
-- [ ] Secret e variable configurados no fork
+- [ ] `bootstrap.sh` rodado com o usuário do GitHub e as quatro variables criadas
+- [ ] Fork sincronizado e quatro variables criadas
 - [ ] Pull request aberto **contra o próprio fork**, com o plano lido no log e na aba Summary
 - [ ] Merge feito e job `apply` verde, com a API respondendo no navegador
 - [ ] Capturas da atividade coletadas
-- [ ] Workflow de destroy rodado, `bootstrap-limpeza.sh` rodado e o secret apagado
+- [ ] Workflow de destroy rodado e `bootstrap-limpeza.sh` rodado
 
 ---
 
@@ -302,7 +329,11 @@ Falta um passo manual, que nenhum script pode fazer por você: apague o secret `
 | `Error acquiring the state lock` | esperar o outro job terminar, ou `terraform force-unlock <ID>` | Um plan de pull request e um apply da main ao mesmo tempo, ou um job cancelado no meio. O lock é o que impede dois Terraform de escreverem o mesmo estado. |
 | Apply falha com `already exists` | `az group delete -n aula4-rg --yes` e depois **Re-run jobs** | O destroy da Etapa 4 não foi feito, e o grupo existe sem estar no estado do robô. |
 | Job `plan` ou `apply` aparece como `skipped` | Settings → Secrets and variables → Actions, aba Variables | A variable `TFSTATE_STORAGE_ACCOUNT` não foi criada ou está com o nome errado. Confira também se o pull request tem o seu fork nas duas pontas. |
-| `AuthorizationFailed` ou `InvalidAuthenticationToken` | conferir o secret e esperar 1 a 2 minutos | JSON colado incompleto, ou o papel do service principal ainda não propagou. Recolar o JSON inteiro resolve o primeiro caso. |
+| A variable `AZURE_CLIENT_ID` não está configurada | aba Variables do fork | O job começou mas parou no passo de conferência. Faltou alguma das quatro variables da Etapa 6. |
+| `RequestDisallowedByAzure ... best available regions` | `python3 check_azure.py` na raiz do repositório | A assinatura não libera a região. Escolha uma da lista e acrescente `location = "<região>"` ao `terraform.tfvars`. |
+| `AADSTS700213: No matching federated identity record` no `terraform init` do job | `cat bootstrap.out` e conferir o usuário do GitHub | O bootstrap foi rodado com o usuário errado, ou o pull request foi aberto contra o repositório do professor. Refaça o bootstrap com o usuário certo. |
+| `AuthorizationFailed` no job logo depois do bootstrap | esperar um pouco e **Re-run jobs** | A permissão do robô ainda não propagou. |
+| `Insufficient privileges` em algum comando `az ad` | nada | Você está no caminho antigo. A aula não usa `az ad`. Confira se rodou o `bootstrap.sh` atual. |
 | Não acho o plano no log | job `plan`, passo `terraform plan`, ou a aba Summary | Os passos vêm recolhidos por padrão. A lupa do log aceita buscar por `Plan:`. |
 | `curl` responde `connection refused` | esperar 30 segundos e repetir | O container ainda está baixando a imagem. O apply termina quando o Azure aceita o recurso, não quando a API responde. |
 
@@ -320,7 +351,7 @@ terraform plan
 
 Ele mostra `Plan: 1 to add, 0 to change, 0 to destroy.`, porque comparou o que está escrito com o que existe de verdade e achou a diferença. Um `terraform apply` traz o container de volta. Variante mais sutil: em vez de apagar, altere uma tag pelo portal e rode o plan de novo, que agora mostra `~ update in-place`, sem recriação. Isso é drift, a diferença entre o que o código diz e o que o mundo é, e é por isso que times sérios rodam `plan` em horário programado só para conferir.
 
-**2. Operar o estado remoto a partir do Cloud Shell.** Crie na mão um `backend_ci.tf` com o mesmo conteúdo que o workflow gera, exporte as quatro variáveis `ARM_` a partir do `bootstrap.out.json` e rode:
+**2. Operar o estado remoto a partir do Cloud Shell.** Crie na mão um `backend_ci.tf` com o mesmo conteúdo que o workflow gera, trocando o nome da storage account pelo do seu `bootstrap.out` e apagando a linha `use_oidc = true`, que só serve ao robô. No Cloud Shell quem autentica é você, com a sua própria conta, que já tem acesso à storage account. Depois rode:
 
 ```bash
 terraform init -reconfigure
@@ -329,24 +360,7 @@ terraform plan
 
 Se estiver tudo certo, o plan responde `No changes`, porque agora você está lendo o mesmo estado que o robô escreveu. É assim que se investiga um apply que falhou no CI. Lembre de apagar o `backend_ci.tf` depois, já que ele está no `.gitignore` justamente para não ser versionado.
 
-**3. OIDC em vez de senha.** O `AZURE_CREDENTIALS` guarda uma senha de robô, que não expira sozinha e vaza se alguém colar no lugar errado. O caminho moderno é a federação de identidade: o GitHub emite um token de curta duração para aquele repositório e aquela branch, e o Azure confia nele sem que exista senha nenhuma guardada.
-
-```bash
-APP_ID=$(az ad app create --display-name gh-oidc-infra-para-ia --query appId -o tsv)
-az ad sp create --id "$APP_ID"
-az role assignment create --assignee "$APP_ID" --role Contributor \
-  --scope "/subscriptions/$(az account show --query id -o tsv)"
-az ad app federated-credential create --id "$APP_ID" --parameters '{
-  "name": "gh-main",
-  "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:<SEU-USUARIO>/infra-para-ia:ref:refs/heads/main",
-  "audiences": ["api://AzureADTokenExchange"]
-}'
-```
-
-Falta ainda uma segunda credencial federada com o `subject` terminando em `:pull_request`, para o job de plan, e no workflow a permissão `id-token: write`, a variável `ARM_USE_OIDC=true` e `ARM_CLIENT_ID`, `ARM_TENANT_ID` e `ARM_SUBSCRIPTION_ID` como variables, sem secret nenhum.
-
-> **Aviso.** Estes comandos são material de referência, não foram ensaiados em aula e não têm suporte na atividade avaliativa. Se você quebrar alguma coisa tentando, o caminho de volta é o `bootstrap-limpeza.sh` e um bootstrap novo.
+**3. O modelo antigo, com senha.** Em muitas empresas o robô ainda é um service principal com segredo, criado com `az ad sp create-for-rbac`, cuja senha fica guardada em um secret do GitHub. É o caminho que esta aula não usa, porque a senha não expira sozinha e vaza se alguém colar no lugar errado. Se um dia você precisar dele, o comando é esse, mas ele exige permissão no Entra ID que contas de estudante normalmente não têm.
 
 ---
 
@@ -375,10 +389,12 @@ Falta ainda uma segunda credencial federada com o `subject` terminando em `:pull
 |---|---|
 | `az account show --query id -o tsv` | O id da assinatura, que vira o `ARM_SUBSCRIPTION_ID`. |
 | `az group list -o table` | Conferir a faxina. |
-| `az ad sp create-for-rbac ...` | Criar a identidade do robô (Etapa 5, dentro do bootstrap). |
-| `az ad sp list --display-name gh- -o table` | Achar service principals criados pelo bootstrap. |
+| `az identity create -g tfstate-rg -n gh-infra-para-ia` | Criar a identidade do robô (Etapa 5, dentro do bootstrap). |
+| `az identity federated-credential create ...` | Dizer ao Azure em qual repositório e em qual branch do GitHub confiar (Etapa 5, dentro do bootstrap). |
+| `az identity list -g tfstate-rg -o table` | Achar a identidade criada pelo bootstrap. |
 | `az storage account list -g tfstate-rg -o table` | Achar a storage account do estado. |
 | `az group delete -n NOME --yes --no-wait` | Faxina de emergência, quando o Terraform já perdeu o estado. |
+| `python3 check_azure.py` | Descobrir, na raiz do repositório, quais regiões a assinatura libera e quais tamanhos de VM têm cota. |
 
 ---
 
@@ -398,8 +414,9 @@ Falta ainda uma segunda credencial federada com o `subject` terminando em `:pull
 | Lock file | O `.terraform.lock.hcl`, que fixa a versão e a impressão digital dos providers. Coisa diferente do lock de estado, apesar do nome parecido. |
 | Drift | A diferença entre o que o código declara e o que existe de fato, em geral porque alguém mexeu na mão pelo portal. |
 | Idempotência | Aplicar o mesmo arquivo várias vezes tem o mesmo efeito de aplicar uma vez. É o que faz o segundo `plan` dizer `No changes`. |
-| Service principal | Conta de robô no Entra ID: tem identidade e credencial, não tem pessoa atrás. É quem o GitHub Actions usa para agir no Azure. |
+| Identidade gerenciada | Uma identidade para um recurso do Azure, não para uma pessoa, e sem senha. É o robô do GitHub no Azure. |
+| Credencial federada | A regra, gravada na identidade, que diz qual repositório e qual branch do GitHub podem usá-la. |
 | RBAC | O modelo de permissões do Azure: quem (a identidade) pode fazer o quê (o papel) e onde (o escopo). Na aula, Contributor na assinatura. |
-| OIDC | Federação de identidade: o CI apresenta um token de curta duração em vez de uma senha guardada. É o caminho recomendado hoje, e está na seção "para ir além". |
+| OIDC | Autenticação federada em que o GitHub prova quem é com um token assinado, de curta duração, e o Azure aceita sem senha guardada. É o que a prática usa. |
 | Bootstrap | O que precisa existir antes do Terraform poder trabalhar e que ele não cria para si mesmo: o lugar do estado e a identidade que aplica. |
 | GitOps | Usar o Git como fonte da verdade da infraestrutura: a mudança entra por pull request, é revisada, e o merge é o que dispara a aplicação. É o que a Parte 2 faz. |

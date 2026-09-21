@@ -45,7 +45,7 @@ Actions → terraform-aula4-destroy → Run workflow → confirmacao: destruir
 az group list -o table
 ```
 
-E apague o secret `AZURE_CREDENTIALS` do fork.
+As quatro variables do fork podem ficar, não há segredo nelas.
 
 ## Bônus conceitual, sem nota
 
@@ -56,9 +56,9 @@ Gerem o `aks.tf` com um assistente de IA e relatem em três linhas o que o `terr
 - Os argumentos mínimos de `azurerm_kubernetes_cluster` são `name`, `location`, `resource_group_name`, `dns_prefix`, `sku_tier = "Free"`, o bloco `default_node_pool` com `name` (até 12 caracteres minúsculos), `node_count` e `vm_size`, o bloco `identity { type = "SystemAssigned" }` e `tags`. Não é preciso `linux_profile` nem chave SSH.
 - **As variáveis novas precisam de `default`.** O workflow roda o Terraform com `-input=false`, então uma variável sem valor não abre um prompt: ela derruba o job. Se preferirem passar os valores pelo `terraform.tfvars` em vez do `default`, lembrem de comitar o arquivo no mesmo pull request.
 - O `plan` do pull request tem que dizer `1 to add`, e não `4 to add`. Se vier 4, o estado do robô está vazio, sinal de que a prática foi destruída e não refeita. Refaçam a Etapa 8 antes de abrir o pull request da atividade.
-- O AKS cria sozinho um segundo resource group, `MC_aula4-rg_<nome-do-cluster>_eastus`, com o nó, o disco e a rede. O `destroy` remove os dois, e a E4 exige o portal sem nenhum deles.
+- O AKS cria sozinho um segundo resource group, `MC_aula4-rg_<nome-do-cluster>_brazilsouth`, com o nó, o disco e a rede. O cluster nasce na mesma região do resto, a `var.location`. O `destroy` remove os dois, e a E4 exige o portal sem nenhum deles.
 - Para a E3: `az aks get-credentials -g aula4-rg -n <nome-do-cluster> --overwrite-existing` e depois `kubectl get nodes`.
-- Se o plano ou o apply falhar com `VM size ... is not allowed`, rodem o [`check_region.sh`](../check_region.sh) da raiz do repositório para ver os tamanhos liberados na assinatura de vocês, e ajustem o `default` de `node_vm_size`.
+- Se o plano ou o apply falhar com `VM size ... is not allowed` ou com `RequestDisallowedByAzure`, rodem `python3 check_azure.py` na raiz do repositório. Ele mostra as regiões que a assinatura libera e os tamanhos de nó com cota de vCPU disponível, e recomenda um par de região e tamanho. Ajustem o `default` de `node_vm_size` e, se preciso, o `location` no `terraform.tfvars`.
 - O AKS leva de 5 a 10 minutos no apply e de 3 a 6 no destroy. O runner do GitHub tem tempo de sobra, mas não cancelem o job achando que travou.
 - Custo de cerca de US$ 0,10 por hora com o cluster de pé. Destruam logo depois das capturas.
 - **Não criem um output com credenciais.** O `kube_config` do AKS é um atributo sensível: ele apareceria no log do job e na aba Summary, que são públicos no seu fork. A E3 sai do `az aks get-credentials`, que busca a credencial na hora, sem guardar nada no repositório.

@@ -22,7 +22,13 @@ provider "azurerm" {
 
   # A assinatura vem da variável de ambiente ARM_SUBSCRIPTION_ID, que o
   # provider da linha 4.x exige. Veja a etapa 1 do ROTEIRO.
-  # Os providers de recurso já foram registrados nas aulas 1 e 2, então
-  # não precisamos que o Terraform tente registrá-los de novo.
+  # Em vez de registrar todos os providers de recurso do Azure (dezenas,
+  # e lento), registramos só os que a aula usa. Se a sua assinatura já os
+  # tiver, nada acontece.
   resource_provider_registrations = "none"
+  resource_providers_to_register = [
+    "Microsoft.ContainerInstance",
+    "Microsoft.Storage",
+    "Microsoft.ContainerService",
+  ]
 }
