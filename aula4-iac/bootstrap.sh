@@ -57,7 +57,7 @@ echo "2/4 Storage account do estado: ${SA}"
 az storage account create -n "$SA" -g "$RG_ESTADO" -l "$LOCATION" \
   --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
   --allow-blob-public-access false -o none
-CHAVE=$(az storage account keys list -g "$RG_ESTADO" -n "$SA" --query '[0].value' -o tsv 2>/dev/null)
+CHAVE=$(az storage account keys list -g "$RG_ESTADO" -n "$SA" --query '[0].value' -o tsv)
 az storage container create -n tfstate --account-name "$SA" --account-key "$CHAVE" -o none
 az storage account blob-service-properties update \
   --account-name "$SA" -g "$RG_ESTADO" --enable-versioning true -o none
@@ -66,9 +66,22 @@ echo "3/4 Identidade do robô: ${IDENTIDADE} (papel Contributor na assinatura)"
 az identity create -g "$RG_ESTADO" -n "$IDENTIDADE" -l "$LOCATION" -o none
 CLIENT_ID=$(az identity show -g "$RG_ESTADO" -n "$IDENTIDADE" --query clientId -o tsv)
 PRINCIPAL_ID=$(az identity show -g "$RG_ESTADO" -n "$IDENTIDADE" --query principalId -o tsv)
-az role assignment create --assignee-object-id "$PRINCIPAL_ID" \
-  --assignee-principal-type ServicePrincipal --role Contributor \
-  --scope "/subscriptions/${SUB_ID}" -o none
+# A identidade leva alguns segundos para aparecer no Entra ID, e a atribuição
+# de papel falha com PrincipalNotFound se for feita cedo demais. Tenta de novo.
+for tentativa in 1 2 3 4 5 6; do
+  if az role assignment create --assignee-object-id "$PRINCIPAL_ID" \
+    --assignee-principal-type ServicePrincipal --role Contributor \
+    --scope "/subscriptions/${SUB_ID}" -o none 2>/dev/null; then
+    break
+  fi
+  if [[ $tentativa -eq 6 ]]; then
+    echo "Não consegui dar o papel Contributor à identidade ${IDENTIDADE}." >&2
+    echo "Rode ./bootstrap-limpeza.sh e tente de novo." >&2
+    exit 1
+  fi
+  echo "    a identidade ainda está propagando, tentando de novo em 10s"
+  sleep 10
+done
 
 echo "4/4 Credenciais federadas para github.com/${GH_USER}/${REPO}"
 SUJEITO="repo:${GH_USER}@${OWNER_ID}/${REPO}@${REPO_ID}"
