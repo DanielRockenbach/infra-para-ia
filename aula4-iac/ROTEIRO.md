@@ -94,11 +94,10 @@ O `apply` mostra o plano de novo e para, esperando você digitar `yes`. **Leia o
 O `plan` termina com:
 
 ```
-Registering resource providers...
 Plan: 3 to add, 0 to change, 0 to destroy.
 ```
 
-Na primeira vez o Terraform registra na sua assinatura os serviços que a aula usa, e isso pode demorar um pouco a mais. Nas vezes seguintes já estão registrados e o plan sai rápido.
+Se a sua assinatura ainda não tiver os serviços que a aula usa, o Terraform registra sozinho e o plan demora um pouco a mais, anunciando `Registering resource providers...` antes do resumo. Quem fez as aulas 1 a 3 já tem tudo registrado e não vê essa linha.
 
 O `apply` termina com `Apply complete! Resources: 3 added.`, seguido dos três outputs:
 
