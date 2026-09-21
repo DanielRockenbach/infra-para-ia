@@ -2,6 +2,8 @@
 
 A mesma API das aulas anteriores, que na Aula 1 você criou clicando no portal e digitando `az container create`, agora nasce de um arquivo. Você escreve o estado desejado em Terraform, roda `plan` para ver o que vai acontecer e `apply` para acontecer. Na primeira metade da prática isso roda na sua mão, no Cloud Shell. Na segunda metade quem roda é o GitHub Actions, a partir de um pull request, que é como equipes de verdade mexem em infraestrutura.
 
+O robô do GitHub se autentica por OIDC com uma identidade gerenciada, sem senha. Região padrão: brazilsouth.
+
 | Arquivo | O que é |
 |---|---|
 | `ROTEIRO.md` | **Comece por aqui:** o passo a passo da prática no Azure e no GitHub |
@@ -35,6 +37,6 @@ A prática inteira custa cerca de US$ 0,06, porque a Azure Container Instance so
 A faxina aqui tem duas camadas, e as duas são obrigatórias:
 
 1. O workflow `terraform-aula4-destroy` apaga o que o Terraform criou, ou seja, o resource group `aula4-rg`.
-2. O `./bootstrap-limpeza.sh` apaga o que o Terraform não criou, ou seja, a storage account do estado e o service principal do robô.
+2. O `./bootstrap-limpeza.sh` apaga o que o Terraform não criou, ou seja, o resource group do estado, que leva junto a storage account e a identidade do robô.
 
 A ordem importa. Se você apagar o estado antes de destruir a infraestrutura, o Terraform perde a memória do que criou e sobra recurso ligado consumindo crédito.

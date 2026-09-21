@@ -15,9 +15,9 @@ variable "turma" {
 }
 
 variable "location" {
-  description = "Região do Azure. eastus é a região padrão da disciplina."
+  description = "Região do Azure. brazilsouth é a região padrão da disciplina. Se o Azure recusar com RequestDisallowedByAzure, rode python3 check_azure.py na raiz do repositório e escolha outra."
   type        = string
-  default     = "eastus"
+  default     = "brazilsouth"
 }
 
 variable "imagem_tag" {
