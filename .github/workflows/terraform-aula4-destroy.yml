@@ -1,0 +1,95 @@
+# Destrói a infraestrutura da aula 4 pelo GitHub.
+#
+# Roda só manualmente, pela aba Actions -> Run workflow, e só depois de
+# você digitar a palavra destruir no campo de confirmação.
+#
+# Depois deste workflow ainda falta a segunda camada da faxina:
+# rodar ./bootstrap-limpeza.sh no Cloud Shell, que apaga a storage
+# account do estado e a identidade do robô.
+#
+# A autenticação é por OIDC, com as mesmas variables do terraform-aula4.yml.
+
+name: terraform-aula4-destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmacao:
+        description: "Digite destruir para confirmar"
+        required: true
+
+concurrency:
+  group: terraform-aula4
+  cancel-in-progress: false
+
+# id-token: write é o que permite ao job pedir o token OIDC que o Azure aceita.
+permissions:
+  contents: read
+  id-token: write
+
+# O provider azurerm e o backend leem estas variáveis e trocam o token do
+# GitHub por um token do Azure. Nenhuma senha em lugar nenhum.
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+defaults:
+  run:
+    working-directory: aula4-iac
+
+jobs:
+  destroy:
+    name: destroy
+    if: inputs.confirmacao == 'destruir' && vars.TFSTATE_STORAGE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v5
+
+      - name: Instalar o Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Conferir as variables
+        run: |
+          for v in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "A variable ${v/ARM_/AZURE_} não está configurada em Settings > Secrets and variables > Actions > Variables."
+              echo "Veja a etapa 6 do ROTEIRO.md da aula 4."
+              exit 1
+            fi
+          done
+
+      - name: Backend remoto
+        run: |
+          cat > backend_ci.tf <<EOF
+          terraform {
+            backend "azurerm" {
+              resource_group_name  = "tfstate-rg"
+              storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+              container_name       = "tfstate"
+              key                  = "aula4.terraform.tfstate"
+              use_oidc             = true
+            }
+          }
+          EOF
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform plan -destroy
+        run: terraform plan -destroy -input=false -no-color
+
+      - name: terraform destroy
+        run: terraform destroy -input=false -no-color -auto-approve
+
+      - name: Lembrete da segunda camada
+        run: |
+          {
+            echo "## Infraestrutura destruída"
+            echo
+            echo "Falta a faxina do bootstrap: rode ./bootstrap-limpeza.sh no Cloud Shell."
+          } >> "$GITHUB_STEP_SUMMARY"

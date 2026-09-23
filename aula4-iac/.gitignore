@@ -1,0 +1,14 @@
+# Backend gerado pelo workflow, nunca versionado
+backend_ci.tf
+
+# Saída do bootstrap: os valores das variables desta dupla
+bootstrap.out
+
+# Planos salvos e logs
+tfplan
+plan.txt
+crash.log
+.terraform.tfstate.lock.info
+.terraform/
+*.tfstate
+*.tfstate.backup
