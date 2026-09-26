@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-check_azure.py: descobre onde a sua assinatura do Azure deixa criar AKS e ACI.
+check_azure.py: descobre onde a sua assinatura do Azure deixa criar AKS e ACI
+e, para a aula 5, Event Hubs e storage accounts.
 
 Uso, no Cloud Shell (Bash), a partir da raiz do repositório:
 
@@ -157,11 +158,14 @@ def main():
     if aks:
         aks_regioes = regioes_do_provider("Microsoft.ContainerService", "managedClusters")
         aci_regioes = regioes_do_provider("Microsoft.ContainerInstance", "containerGroups")
+        eh_regioes = regioes_do_provider("Microsoft.EventHub", "namespaces")
+        st_regioes = regioes_do_provider("Microsoft.Storage", "storageAccounts")
     else:
         vm_regioes = regioes_do_provider("Microsoft.Compute", "virtualMachines")
     exibicao = nomes_de_exibicao()
 
     recomendacoes = []
+    aula5 = []  # regiões com ACI, Event Hubs e storage: a aula 5 não usa VM
     for regiao in regioes:
         titulo = f"{regiao}  ({exibicao.get(regiao, regiao)})"
         print("=" * 72)
@@ -171,6 +175,10 @@ def main():
             tem_aks = regiao in aks_regioes
             tem_aci = regiao in aci_regioes
             print(f"  AKS disponível: {'sim' if tem_aks else 'NÃO'}    ACI disponível: {'sim' if tem_aci else 'NÃO'}")
+            tem_eh, tem_st = regiao in eh_regioes, regiao in st_regioes
+            print(f"  Event Hubs disponível: {'sim' if tem_eh else 'NÃO'}    Storage disponível: {'sim' if tem_st else 'NÃO'}")
+            if tem_aci and tem_eh and tem_st:
+                aula5.append(regiao)
         else:
             tem_aks = regiao in vm_regioes
             tem_aci = False
@@ -242,6 +250,12 @@ def main():
             recomendacoes.append((regiao, melhor["nome"], tem_aci))
 
     print("=" * 72)
+    if aks:
+        if aula5:
+            print(f"Aula 5 (Event Hubs, Blob e ACI): use a região {aula5[0]} nas três peças.")
+        else:
+            print("Aula 5: nenhuma das regiões tem ACI, Event Hubs e storage juntos. Fale com o professor.")
+        print("=" * 72)
     if not recomendacoes:
         print("Nenhuma região com AKS e tamanho de VM com cota livre. Fale com o professor." if aks
               else "Nenhuma região com tamanho de VM com cota livre. Fale com o professor.")
