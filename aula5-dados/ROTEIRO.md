@@ -278,7 +278,7 @@ Um grupo novo, `pipeline`, com duas opções a mais: `--api` manda cada avaliaç
 >
 > ```
 > {"id_produto": "P11", "texto": "...", "sentimento": "positivo",
->  "confianca": 0.94, "particao": 2, "offset": 7}
+>  "confianca": 0.9443, "particao": 2, "offset": 7}
 > ```
 
 O nome do blob combina partição e offset, e isso tem motivo. Dois eventos nunca têm o mesmo par, então os nomes nunca colidem. E se o consumidor cair depois de gravar e antes de registrar o offset, o Kafka entrega o mesmo evento de novo, a garantia chamada **at-least-once**: o reprocessamento sobrescreve o mesmo blob, e a duplicata não faz estrago.
