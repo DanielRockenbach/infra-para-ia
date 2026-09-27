@@ -45,7 +45,7 @@ Se já alteraram o código, voltem a linha original com `git checkout consumidor
    python3 consumidor.py --grupo e1-sentimento --desde-o-inicio --api --blob
    ```
 
-   Cada linha da saída mostra o nome do blob gravado, que agora começa com `positivas/` ou `negativas/`. Quando pararem de surgir linhas novas, **Ctrl+C**.
+   Cada linha da saída mostra o nome do blob gravado, que agora começa com `positivas/` ou `negativas/`. O histórico inteiro leva alguns minutos para passar, porque cada avaliação é uma chamada à API e uma gravação no Blob. Quando pararem de surgir linhas novas, **Ctrl+C**.
 4. No portal, abram o container `avaliacoes`.
 
 **A captura mostra** o trecho alterado do `consumidor.py` (no editor, ou com `grep -n -B1 -A1 "nome_blob =" consumidor.py`) e o container `avaliacoes` no portal com os dois prefixos, `positivas/` e `negativas/`, cheios de blobs.
@@ -85,6 +85,8 @@ Se já alteraram o código, voltem a linha original com `git checkout consumidor
    az storage blob list --account-name <storage> -c avaliacoes --query "length(@)" -o tsv
    ```
 
+   Antes do número aparece um aviso amarelo dizendo que o comando vai buscar a chave da storage account. Ele não atrapalha: a contagem é o número da última linha.
+
 4. Com o consumidor ainda parado, publiquem 20 avaliações na aba 1. O produtor termina com `fim: 20 avaliações enviadas`:
 
    ```bash
@@ -109,12 +111,12 @@ A diferença entre as duas contagens tem que ser **exatamente 20**. O número ab
    python3 consumidor.py --grupo e4-replay1 --desde-o-inicio --api --blob --prefixo reprocessado
    ```
 
-   As primeiras linhas de cada partição saem com `off 0`: o grupo começou do início do log. Os blobs vão para `reprocessado/`, e não para `resultados/`.
+   O consumidor percorre o histórico uma partição de cada vez: primeiro a partição 0 inteira, a partir do `off 0`, depois a 1, e assim por diante. O `off 0` no começo de cada partição mostra que o grupo começou do início do log. Os blobs vão para `reprocessado/`, e não para `resultados/`. Como na E1, o histórico inteiro leva alguns minutos.
 3. Quando pararem de surgir linhas novas, **Ctrl+C**, e abram o container `avaliacoes` no portal.
 
 O log guarda os eventos por 24 horas, lidos ou não. O histórico que volta é o dessas 24 horas.
 
-**A captura mostra** o comando com o grupo novo, `--desde-o-inicio` e `--prefixo reprocessado`, as primeiras linhas da saída, o prefixo `reprocessado/` no portal com o histórico inteiro, e duas linhas respondendo: **por que isso importa quando sai uma versão nova do modelo?**
+**A captura mostra** o comando com o grupo novo, `--desde-o-inicio` e `--prefixo reprocessado`, as primeiras linhas da saída, com a partição 0 começando em `off 0`, o prefixo `reprocessado/` no portal com o histórico inteiro, e duas linhas respondendo: **por que isso importa quando sai uma versão nova do modelo?**
 
 ### E5 · Conta limpa
 
@@ -135,30 +137,10 @@ O namespace e a storage account têm que ser os mesmos em todas as capturas, e o
 
 As chaves do `config.env` nunca aparecem nas capturas. Não abram o `config.env` na tela na hora de capturar, e não rodem `cat config.env`.
 
-## Desafio opcional
-
-Subam a imagem `v2` da API em uma segunda ACI, ao lado da `v3`:
-
-```bash
-az container create -g aula5-rg -n sentiment-api-v2 \
-  --image ghcr.io/rodolfo-s-antunes/sentiment-api:v2 \
-  --os-type Linux --ip-address Public --ports 8000 \
-  --cpu 1 --memory 1
-az container show -g aula5-rg -n sentiment-api-v2 --query ipAddress.ip -o tsv
-```
-
-Apontem o `API_URL` para ela e reprocessem o histórico com um grupo novo e outro prefixo, por exemplo `--grupo desafio-v2 --desde-o-inicio --api --blob --prefixo v2`. Não é preciso editar o `config.env`: uma variável de ambiente com o mesmo nome tem prioridade sobre o arquivo.
-
-```bash
-API_URL=http://<IP-DA-V2>:8000 python3 consumidor.py --grupo desafio-v2 --desde-o-inicio --api --blob --prefixo v2
-```
-
-Comparem os sentimentos das duas versões para as mesmas avaliações, abrindo no portal o mesmo `partição-offset` em `reprocessado/` e em `v2/`. A segunda ACI entra na cobrança: apaguem junto com o `aula5-rg`.
-
 ## Dicas
 
 - Quase todo erro é um valor do `config.env`. Abram o arquivo antes de procurar outra causa. A tabela **Erros comuns** do [roteiro](ROTEIRO.md) lista as mensagens dos scripts e o que fazer com cada uma.
-- Se o `az storage blob list` reclamar de permissão, acrescentem `--auth-mode key` ao comando, como na aula 4. Ele pode imprimir um aviso amarelo sobre buscar a chave da conta, que não atrapalha a contagem.
+- Se o `az storage blob list` reclamar de permissão, acrescentem `--auth-mode key` ao comando, como na aula 4.
 - O consumidor só confirma o offset de uma avaliação depois de gravar o blob. Se a API falhar no meio, ele encerra sem confirmar, e a próxima execução com o mesmo grupo reprocessa o evento. Isso não quebra a E3: o blob é sobrescrito com o mesmo nome.
 - Um grupo novo sem `--desde-o-inicio` começa do fim do log e fica esperando. Se o consumidor conecta e não imprime nada, confiram se o produtor está rodando.
 - Custo: o namespace Standard com 1 throughput unit fica em torno de US$ 0,12 por hora, e a ACI em torno de US$ 0,07 por hora. Juntem as evidências em uma sessão só e apaguem tudo no fim.

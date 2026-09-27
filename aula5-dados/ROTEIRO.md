@@ -90,7 +90,7 @@ A hierarquia da teoria na tela:
 
 - **Storage account** `st<apelido>aula5`: nome global, redundância LRS, região Brazil South.
 - **Container** `avaliacoes`: privado, agrupa os blobs.
-- **Blobs**: `avaliacoes.csv` e, na Etapa 6, `resultados/2-3.json` e outros.
+- **Blobs**: `avaliacoes.csv` e, na Etapa 6, `resultados/2-7.json` e outros.
 
 Endereço de um blob: `https://st<apelido>aula5.blob.core.windows.net/avaliacoes/avaliacoes.csv`. A barra em `resultados/` não cria uma pasta: é o começo do nome do blob, e o portal desenha pastas a partir desses prefixos. Na AWS a mesma ideia é conta, bucket e objeto: o Azure tem um nível a mais em cima, a storage account.
 
@@ -143,7 +143,7 @@ No portal, busque **Event Hubs** → **+ Create**. Na aba **Basics**:
 
 **Review + create** → **Create** → **Go to resource**.
 
-> **Standard, nunca Basic.** O tier Basic é mais barato, mas não tem o endpoint Kafka. Com ele os scripts não conectam, e o erro não diz o motivo. Se você criou como Basic, apague o namespace e crie de novo como Standard.
+> **Standard, nunca Basic.** O tier Basic é mais barato, mas não tem o endpoint Kafka. Com ele os scripts não conectam e avisam que o namespace é Basic. Se você criou como Basic, apague o namespace e crie de novo como Standard.
 
 #### 3b · Criar o event hub
 
@@ -217,12 +217,12 @@ Saída esperada (resumida):
 ```
 conectado a eh-anaejoao-aula5.servicebus.windows.net:9093 · tópico avaliacoes
 P07  "chegou rápido e funciona bem"       → partição 2 · offset 0
-P03  "a bateria não dura nem meio dia"    → partição 0 · offset 0
+P03  "a bateria não dura nem meio dia"    → partição 3 · offset 0
 P07  "recomendo, ótimo custo-benefício"   → partição 2 · offset 1
-P11  "veio com a caixa amassada"          → partição 3 · offset 0
+P11  "veio com a caixa amassada"          → partição 2 · offset 2
 ```
 
-O produtor envia uma avaliação por segundo e percorre o CSV inteiro. Cada avaliação vai com o id do produto como **chave**, e o Kafka escolhe a partição a partir da chave: toda avaliação do P07 cai na partição 2, na ordem em que foi feita. O **offset** conta por partição, começando do zero. Não existe um offset do tópico inteiro. Deixe o produtor rodando nesta aba.
+O produtor envia uma avaliação por segundo e percorre o CSV inteiro. Cada avaliação vai com o id do produto como **chave**, e o Kafka escolhe a partição a partir da chave: toda avaliação do P07 cai na partição 2, na ordem em que foi feita. Produtos diferentes podem dividir uma partição, como o P11, que também cai na 2. O **offset** conta por partição, começando do zero: a partição 2 já está no offset 2 enquanto a 3 recebe o seu primeiro evento. Não existe um offset do tópico inteiro. Deixe o produtor rodando nesta aba.
 
 > **Confira no portal.** No namespace, **Overview**: o gráfico de mensagens recebidas (**Incoming Messages**) começa a subir alguns instantes depois do produtor. No event hub `avaliacoes` aparecem as quatro partições. Os eventos estão guardados no log e continuam lá depois de lidos, até a retenção de 24 horas vencer.
 
@@ -239,9 +239,9 @@ Saída esperada (resumida):
 
 ```
 grupo leitura · partições atribuídas: 0, 1, 2, 3
-p2 · off 2   P07   chegou rápido, mas a tela veio riscada
+p2 · off 3   P07   chegou rápido, mas a tela veio riscada
 p1 · off 0   P02   ótimo custo, uso todo dia
-p0 · off 1   P03   parou de carregar em uma semana
+p3 · off 1   P03   parou de carregar em uma semana
 ```
 
 O consumidor entra no **consumer group** chamado `leitura`. Como é o único membro, o grupo entrega a ele as quatro partições. Um grupo novo começa do fim do log e lê só o que chega depois dele, por isso o produtor precisa estar rodando na aba 1. Faça o teste: **Ctrl+C** e rode o mesmo comando de novo. O consumidor continua exatamente de onde parou, porque o grupo guardou o offset de cada partição.
@@ -268,8 +268,8 @@ Saída esperada (resumida):
 
 ```
 grupo pipeline · partições atribuídas: 0, 1, 2, 3
-p2 · off 3   P07   positivo (0,93)   → resultados/2-3.json
-p3 · off 1   P11   negativo (0,88)   → resultados/3-1.json
+p1 · off 4   P09   negativo (0,94)   → resultados/1-4.json
+p2 · off 7   P11   positivo (0,94)   → resultados/2-7.json
 ```
 
 Um grupo novo, `pipeline`, com duas opções a mais: `--api` manda cada avaliação para o `POST /prediz` da API, no endereço do `API_URL`, e `--blob` grava a resposta como um arquivo JSON no container `avaliacoes`. Se o produtor já terminou o CSV, rode `python3 produtor.py` de novo na aba 1 e veja o grupo acompanhar.
@@ -277,8 +277,8 @@ Um grupo novo, `pipeline`, com duas opções a mais: `--api` manda cada avaliaç
 > **Confira no portal.** Container `avaliacoes` → pasta `resultados`: os blobs surgem enquanto o consumidor roda. Clique em um e use **Edit** para ler o conteúdo. **Cada avaliação que chegou pelo Kafka virou um arquivo com o sentimento que a API decidiu.** É a frase para guardar desta prática.
 >
 > ```
-> {"id_produto": "P07", "texto": "...", "sentimento": "positivo",
->  "confianca": 0.93, "particao": 2, "offset": 3}
+> {"id_produto": "P11", "texto": "...", "sentimento": "positivo",
+>  "confianca": 0.94, "particao": 2, "offset": 7}
 > ```
 
 O nome do blob combina partição e offset, e isso tem motivo. Dois eventos nunca têm o mesmo par, então os nomes nunca colidem. E se o consumidor cair depois de gravar e antes de registrar o offset, o Kafka entrega o mesmo evento de novo, a garantia chamada **at-least-once**: o reprocessamento sobrescreve o mesmo blob, e a duplicata não faz estrago.
@@ -340,7 +340,7 @@ Em **Gerenciamento de Custos** (Cost Management) → **Análise de custo** (Cost
 | `ModuleNotFoundError: No module named 'confluent_kafka'` | `pip install --user -r requirements.txt` | A sessão do Cloud Shell reiniciou em modo efêmero e perdeu os pacotes. Instale de novo. |
 | `Failed to resolve` com o endereço `servicebus.windows.net` | `EVENTHUB_NAMESPACE` no `config.env` | Nome do namespace digitado errado. É só o nome, sem `.servicebus.windows.net`. |
 | `SASL authentication error` | `EVENTHUB_CONNECTION` no `config.env` | Connection string cortada ou com aspas. Copie de novo, inteira, começando em `Endpoint=sb://`. |
-| Produtor não conecta e mostra erros de transporte | Pricing tier do namespace, no **Overview** | Namespace Basic, que não tem Kafka. Apague e crie de novo como Standard. |
+| `O namespace é do tier Basic` | Pricing tier do namespace, no **Overview** | O tier Basic não tem Kafka. Apague o namespace e crie de novo como Standard. |
 | Tópico `avaliacoes` não encontrado | Lista de event hubs do namespace | O event hub não foi criado ou tem outro nome. O nome precisa ser exatamente `avaliacoes`. |
 | Consumidor conecta e não mostra nada | A aba 1 ainda está produzindo? | Um grupo novo lê só o que chega depois dele. Rode `python3 produtor.py` de novo. |
 | Erro ao chamar a API | `curl -s http://<IP>:8000/versao` | `API_URL` errada no `config.env`, ou o container ainda está subindo. Espere um pouco e repita. |

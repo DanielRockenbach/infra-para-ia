@@ -140,6 +140,12 @@ def explicar_falha(falhas, servidor):
     def primeira(condicao):
         return next((f for f in falhas if condicao(f)), None)
 
+    # O tier Basic recusa o Kafka na autenticação, então vem antes do SASL
+    basic = primeira(lambda f: "Kafka protocol is supported" in f.str())
+    if basic:
+        sair("O namespace é do tier Basic, que não tem o endpoint Kafka. "
+             "Apague o namespace e crie de novo como Standard (Etapa 3 do "
+             "roteiro).", basic.str())
     sasl = primeira(lambda f: f.code() == KafkaError._AUTHENTICATION
                     or "SASL authentication" in f.str())
     if sasl:
