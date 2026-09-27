@@ -23,9 +23,7 @@ Custo estimado da prática da aula 5: cerca de US$ 0,40 por dupla, quase todo no
 
 ## Descobrir o que a sua assinatura libera
 
-Nem toda assinatura deixa criar recursos em qualquer região, e nem todo tamanho de VM tem cota disponível. O `check_region.sh` na raiz faz uma verificação rápida de região.
-
-O `check_azure.py` é a versão mais completa do `check_region.sh`. Ele descobre quais regiões a sua assinatura libera, se AKS e ACI existem em cada uma (e, para a aula 5, Event Hubs e storage accounts) e quais tamanhos de VM têm cota de vCPU disponível, e recomenda região e tamanho. Rode `python3 check_azure.py` no Cloud Shell, a partir da raiz do repositório. Para VMs comuns, fora do AKS, use `python3 check_azure.py --noaks`. O script só lê informações, não cria nem apaga nada.
+Nem toda assinatura deixa criar recursos em qualquer região, e nem todo tamanho de VM tem cota disponível. O `check_azure.py` na raiz descobre quais regiões a sua assinatura libera, se AKS e ACI existem em cada uma (e, para a aula 5, Event Hubs e storage accounts) e quais tamanhos de VM têm cota de vCPU disponível. No fim, recomenda região e tamanho e mostra o que trocar em cada aula, da 2 à 5. Rode `python3 check_azure.py` no Cloud Shell, a partir da raiz do repositório. Para VMs comuns, fora do AKS, use `python3 check_azure.py --noaks`. O script só lê informações, não cria nem apaga nada.
 
 ## O fio condutor do curso
 

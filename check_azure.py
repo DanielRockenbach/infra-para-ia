@@ -251,43 +251,63 @@ def main():
 
     print("=" * 72)
     if aks:
-        if aula5:
-            print(f"Aula 5 (Event Hubs, Blob e ACI): use a região {aula5[0]} nas três peças.")
-        else:
-            print("Aula 5: nenhuma das regiões tem ACI, Event Hubs e storage juntos. Fale com o professor.")
-        print("=" * 72)
+        recomendar_aulas(recomendacoes, aula5, exibicao)
+        return
     if not recomendacoes:
-        print("Nenhuma região com AKS e tamanho de VM com cota livre. Fale com o professor." if aks
-              else "Nenhuma região com tamanho de VM com cota livre. Fale com o professor.")
+        print("Nenhuma região com tamanho de VM com cota livre. Fale com o professor.")
         return
-    regiao, vm, tem_aci = recomendacoes[0]
+    regiao, vm, _ = recomendacoes[0]
     print("RECOMENDAÇÃO")
-    if not aks:
-        print(f"  Região: {regiao}    Menor tamanho com cota: {vm}")
-        if len(recomendacoes) > 1:
-            print("  Outras regiões: " + ", ".join(f"{r} ({v})" for r, v, _ in recomendacoes[1:]))
-        print()
-        print("  Para criar uma VM, use nos comandos:")
-        print(f"    --location {regiao} --size {vm}")
-        print("  A lista acima mostra os outros tamanhos com cota em cada região.")
-        return
-    print(f"  Região: {regiao}    Tamanho do nó: {vm}")
+    print(f"  Região: {regiao}    Menor tamanho com cota: {vm}")
     if len(recomendacoes) > 1:
-        print("  Alternativas: " + ", ".join(f"{r} ({v})" for r, v, _ in recomendacoes[1:]))
+        print("  Outras regiões: " + ", ".join(f"{r} ({v})" for r, v, _ in recomendacoes[1:]))
     print()
-    print("  Aulas 2 e 3 (AKS pelo Cloud Shell), troque nos comandos:")
-    print(f"    --location {regiao} --node-vm-size {vm}")
-    print()
-    if tem_aci:
-        print("  Aula 4 (Terraform), acrescente ao terraform.tfvars:")
-        print(f'    location = "{regiao}"')
-    else:
-        aci = [r for r, _, a in recomendacoes if a]
-        if aci:
-            print(f"  Aula 4 (Terraform): esta região não tem ACI. Use {aci[0]} no terraform.tfvars.")
-        else:
-            print("  Aula 4 (Terraform): nenhuma das regiões liberadas tem ACI. Fale com o professor.")
+    print("  Para criar uma VM, use nos comandos:")
+    print(f"    --location {regiao} --size {vm}")
+    print("  A lista acima mostra os outros tamanhos com cota em cada região.")
 
+
+def recomendar_aulas(recomendacoes, aula5, exibicao):
+    """Imprime a recomendação de cada aula, na ordem das aulas.
+
+    recomendacoes: [(regiao, tamanho, tem_aci)] das regiões com AKS e cota, a melhor primeiro.
+    aula5: regiões com ACI, Event Hubs e storage. A aula 5 não usa VM, então não depende da cota.
+    """
+    print("RECOMENDAÇÃO")
+    if recomendacoes:
+        regiao, vm, tem_aci = recomendacoes[0]
+        print(f"  Região: {regiao}    Tamanho do nó: {vm}")
+        if len(recomendacoes) > 1:
+            print("  Alternativas: " + ", ".join(f"{r} ({v})" for r, v, _ in recomendacoes[1:]))
+        print()
+        print("  Aulas 2 e 3 (AKS pelo Cloud Shell), troque nos comandos:")
+        print(f"    --location {regiao} --node-vm-size {vm}")
+        print()
+        if tem_aci:
+            print("  Aula 4 (Terraform), acrescente ao terraform.tfvars:")
+            print(f'    location = "{regiao}"')
+        else:
+            aci = [r for r, _, a in recomendacoes if a]
+            if aci:
+                print(f"  Aula 4 (Terraform): esta região não tem ACI. Acrescente ao terraform.tfvars:")
+                print(f'    location = "{aci[0]}"')
+            else:
+                print("  Aula 4 (Terraform): nenhuma das regiões liberadas tem ACI. Fale com o professor.")
+    else:
+        regiao = None
+        print("  Aulas 2, 3 e 4: nenhuma região com AKS e tamanho de VM com cota livre. Fale com o professor.")
+    print()
+    if not aula5:
+        print("  Aula 5 (Event Hubs, Blob e ACI): nenhuma das regiões tem os três serviços. Fale com o professor.")
+        return
+    # A mesma região das outras aulas, quando ela tem os três serviços; senão, a próxima alternativa que tenha
+    r5 = next((r for r, _, _ in recomendacoes if r in aula5), aula5[0])
+    if regiao is None or r5 == regiao:
+        print("  Aula 5 (Event Hubs, Blob e ACI), troque nos comandos e no portal:")
+    else:
+        print("  Aula 5 (Event Hubs, Blob e ACI): esta região não tem os três serviços. Troque nos comandos e no portal:")
+    print(f"    az group create -n aula5-rg -l {r5}")
+    print(f"    Region e Location, no portal: {exibicao.get(r5, r5)}")
 
 if __name__ == "__main__":
     main()
