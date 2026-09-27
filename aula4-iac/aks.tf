@@ -1,9 +1,8 @@
 variable "node_vm_size" {
   description = "Tamanho da VM dos nós do AKS"
   type        = string
-  default     = "Standard_D2as_v7"
+  default     = "Standard_D2as_v6"
 }
-
 variable "node_count" {
   description = "Número de nós do node pool padrão"
   type        = number
